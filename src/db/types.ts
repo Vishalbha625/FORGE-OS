@@ -367,6 +367,10 @@ export interface Settings extends BaseRecord {
   savedMeals?: SavedMeal[];
   /** Opt-in: send a summarized snapshot to the self-hosted coach server. */
   aiCoachEnabled?: boolean;
+  /** Coach server base URL when it's on another domain (e.g. https://forge-coach.onrender.com). */
+  coachUrl?: string;
+  /** Shared access token for a public coach server (matches COACH_ACCESS_TOKEN there). Stored on this device only. */
+  coachToken?: string;
 }
 
 // ── Audit history ─────────────────────────────────────────────────────────────

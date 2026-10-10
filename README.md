@@ -49,7 +49,28 @@ like `/training` work), caches hashed assets for a year, and never caches `sw.js
 installed phones). After the first deploy, check that `https://<your-app>/sw.js` returns JavaScript, not HTML.
 
 Vercel serves the app only. The AI coach server (`server/coach-server.mjs`) is a long-running Node
-process, so on Vercel the coach uses its offline rule-based mode unless you host the server elsewhere.
+process, so host it separately (for example on Render) or the coach stays in its offline rule-based mode.
+
+### Coach server on Render (app on Vercel)
+
+The app and the coach server are then on different domains, so the server sends CORS headers
+(`GET, POST, OPTIONS`; `Content-Type, Authorization`) and answers `OPTIONS` preflight with `204`,
+but only for the origins you allow.
+
+1. Render → New **Web Service** from this repo. Build `npm install`, start `npm run server`.
+   (The server binds `0.0.0.0` automatically when Render's `RENDER` variable is set.)
+2. Render environment:
+   - `ANTHROPIC_API_KEY` = your key
+   - `ALLOWED_ORIGINS` = `https://your-app.vercel.app` (comma-separate several; no trailing slash needed)
+   - `COACH_ACCESS_TOKEN` = a long random string, e.g. `openssl rand -hex 32`. CORS only restrains
+     browsers; without a token anyone who finds the URL can spend your API credit with curl.
+3. Vercel environment: `VITE_COACH_URL` = `https://<your-service>.onrender.com`, then redeploy.
+4. On your phone: **Profile → AI coach**, paste the access token (stored on that device only), tap
+   **Check coach server**, then turn the AI coach on. The server URL can also be set there instead of
+   `VITE_COACH_URL`.
+
+Render's free tier sleeps when idle, so the first question after a while can take ~30 s; the app
+falls back to the rule-based coach if the request fails.
 
 ### Install on your phone (PWA)
 

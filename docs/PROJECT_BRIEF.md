@@ -276,7 +276,7 @@ Helper functions: `is_blocked_between`, `can_view_post`, `can_view_post_id` (SEC
 | Method | Path | Request | Response (example) | Auth |
 |---|---|---|---|---|
 | GET | `/api/health` | none | `200 {"ok":true,"model":"claude-opus-5-5","keyPresent":false}` | No (server binds to localhost by default) |
-| POST | `/api/coach` | JSON `{ "question": string ≤ 2000 chars, "context": object ≤ 120,000 chars serialized, "history"?: [{ "role": "user"\|"assistant", "text": string ≤ 8000 }] (≤ 10) }`, body ≤ 200 KB | `200 {"answer":"This week (12 Oct–18 Oct) you've run 12.5 km…","model":"claude-opus-5-5","truncated":false}`. Refusal: `200 {"answer":"I can't help with that one…","refused":true}`. Errors: `400 {"error":"`question` is required."}`, `405`, `413 {"error":"Request too large."}`, `429`, `502`, `503 {"error":"Coach server is not configured. Set ANTHROPIC_API_KEY and restart."}` | No user auth (single-user, local). The Anthropic key is server-side only |
+| POST | `/api/coach` | JSON `{ "question": string ≤ 2000 chars, "context": object ≤ 120,000 chars serialized, "history"?: [{ "role": "user"\|"assistant", "text": string ≤ 8000 }] (≤ 10) }`, body ≤ 200 KB | `200 {"answer":"This week (12 Oct–18 Oct) you've run 12.5 km…","model":"claude-opus-5-5","truncated":false}`. Refusal: `200 {"answer":"I can't help with that one…","refused":true}`. Errors: `400 {"error":"`question` is required."}`, `405`, `413 {"error":"Request too large."}`, `429`, `502`, `503 {"error":"Coach server is not configured. Set ANTHROPIC_API_KEY and restart."}` | Optional `Authorization: Bearer <COACH_ACCESS_TOKEN>`; `401` when the server sets a token and it is missing or wrong. CORS only for origins in `ALLOWED_ORIGINS`; `OPTIONS` preflight returns `204`. The Anthropic key is server-side only |
 | GET | `/*` | none | Built app from `dist/` with SPA fallback to `index.html`; `/assets/*` cached for a year | No |
 
 Notes: there are no role-based permissions (single user). Path traversal outside `dist/` is blocked. The server sends the summarised context as data inside the user message, with a system prompt that enforces the coaching rules.
@@ -409,7 +409,10 @@ FORGE-OS/
 | `COACH_MODEL` | No | Model id. Default `claude-opus-5-5` |
 | `COACH_EFFORT` | No | `low` / `medium` / `high` / `xhigh` / `max`. Default `medium` |
 | `PORT` | No | Server port. Default `8787` |
-| `HOST` | No | Bind address. Default `127.0.0.1` (localhost only); set `0.0.0.0` to expose on the network |
+| `HOST` | No | Bind address. Default `127.0.0.1` (localhost only), or `0.0.0.0` when `RENDER` is set (Render sets it automatically); set `0.0.0.0` to expose on the network |
+| `ALLOWED_ORIGINS` | When app and server are on different domains | Comma-separated origins allowed by CORS, e.g. `https://your-app.vercel.app`. Unset means same-origin only (no CORS headers) |
+| `COACH_ACCESS_TOKEN` | Strongly recommended on a public server | Shared secret the app must send as `Authorization: Bearer …` to `/api/coach`. CORS alone doesn't stop scripts or curl from spending your API credit |
+| `VITE_COACH_URL` | Build-time, frontend | Coach server base URL baked into the app (e.g. `https://forge-coach.onrender.com`). Can be overridden per device in Profile → AI coach. Not secret |
 | `PGTEST_PORT` | No | Port for the throwaway Postgres in the RLS tests. Default `54329` |
 | *(future)* `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | When wiring Supabase | Public project URL and anon key (safe in frontend; privacy is enforced by RLS) |
 

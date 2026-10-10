@@ -6,6 +6,8 @@ import { Chip, InfoNote, Highlight } from '../../components/ui';
 import { useConfirm } from '../../store/confirm';
 import { answerQuestion, generateWeeklyReport } from '../../lib/coach';
 import { buildCoachContext } from '../../lib/coachContext';
+import { coachFetch } from '../../lib/coachApi';
+import type { Settings } from '../../db/types';
 
 interface Msg { role: 'user' | 'coach'; text: string; tags?: string[]; ai?: boolean }
 
@@ -34,12 +36,18 @@ const TAG_STYLE: Record<string, string> = {
   'rule-based': 'border-border text-muted',
 };
 
-async function askServer(question: string, context: unknown, history: { role: 'user' | 'assistant'; text: string }[]) {
-  const res = await fetch('/api/coach', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ question, context, history }),
-  });
+async function askServer(settings: Settings | null, question: string, context: unknown, history: { role: 'user' | 'assistant'; text: string }[]) {
+  let res: Response;
+  try {
+    res = await coachFetch(settings, '/api/coach', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question, context, history }),
+    });
+  } catch {
+    // Network error, or the browser blocked a cross-origin call (CORS).
+    throw new Error('could not reach the coach server');
+  }
   let body: { answer?: string; error?: string } = {};
   try {
     body = await res.json();
@@ -73,7 +81,7 @@ export function Coach() {
       setBusy(true);
       try {
         const history = msgs.slice(1).slice(-8).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, text: m.text }));
-        const answer = await askServer(q, buildCoachContext(snapshot), history);
+        const answer = await askServer(settings, q, buildCoachContext(snapshot), history);
         setMsgs((m) => [...m, { role: 'coach', text: answer, tags: ['AI · Claude'], ai: true }]);
       } catch (err) {
         const fallback = answerQuestion(q, snapshot);
@@ -110,7 +118,7 @@ export function Coach() {
     if (!settings) return;
     if (!aiOn && !(await confirm({
       title: 'Turn on the AI coach?',
-      description: "Each question, plus a summary of your last 4 weeks of logs (no photos), goes to the Forge OS server you run, which sends it to Anthropic's API. You need `npm start` running with an ANTHROPIC_API_KEY. You can turn this off any time.",
+      description: "Each question, plus a summary of your last 4 weeks of logs (no photos), goes to the Forge OS coach server you run (locally or on a host like Render), which sends it to Anthropic's API. The server needs an ANTHROPIC_API_KEY. You can turn this off any time.",
       confirmLabel: 'Turn on',
       cancelLabel: 'Not now',
     }))) return;

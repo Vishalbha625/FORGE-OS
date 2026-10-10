@@ -1,8 +1,8 @@
 // Forge OS local server
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. POST /api/coach  — answers coach questions with Claude, server-side, so the
+// 1. POST /api/coach: answers coach questions with Claude, server-side, so the
 //    API key never reaches the browser.
-// 2. GET  /api/health — reports whether the coach is configured.
+// 2. GET  /api/health: reports whether the coach is configured.
 // 3. Serves the built app from dist/ (with SPA fallback), so `npm start` runs
 //    the whole thing on one localhost port.
 //
@@ -11,16 +11,22 @@
 //
 // Run: npm start            (build + serve on http://localhost:8787)
 //      npm run server       (serve an existing build / API only)
+//
+// Hosted separately from the app (e.g. app on Vercel, server on Render):
+//   ALLOWED_ORIGINS=https://your-app.vercel.app   CORS allow-list, comma-separated
+//   COACH_ACCESS_TOKEN=<long random string>       required Bearer token on /api/coach
 
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { timingSafeEqual } from 'node:crypto';
 import Anthropic from '@anthropic-ai/sdk';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(here, '..', 'dist');
-const HOST = process.env.HOST ?? '127.0.0.1'; // localhost only unless you opt in
+// Localhost only unless you opt in. Render needs 0.0.0.0, so default to that there.
+const HOST = process.env.HOST ?? (process.env.RENDER ? '0.0.0.0' : '127.0.0.1');
 const PORT = Number(process.env.PORT ?? 8787);
 const MODEL = process.env.COACH_MODEL ?? 'claude-opus-5-5';
 const EFFORT = process.env.COACH_EFFORT ?? 'medium';
@@ -28,6 +34,39 @@ const MAX_BODY = 200_000; // bytes
 const MAX_QUESTION = 2_000; // chars
 const MAX_CONTEXT = 120_000; // chars of serialized context
 const MAX_HISTORY = 10; // prior turns
+
+// CORS: browser origins allowed to call /api (the PWA on Vercel, for example).
+// Comma-separated exact origins, e.g. "https://forge-os.vercel.app,http://localhost:5173".
+// Empty = same-origin only (the default when `npm start` serves app and API together).
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+// Optional shared secret. CORS only restrains browsers; when the server is public,
+// this stops anyone else from spending your API credit. The athlete enters it once
+// in the app (Profile, AI coach); it is never baked into the public bundle.
+const ACCESS_TOKEN = process.env.COACH_ACCESS_TOKEN ?? '';
+
+/** CORS headers for this request: only for an allow-listed Origin. */
+function corsHeaders(req) {
+  const origin = req.headers.origin;
+  if (!origin || !ALLOWED_ORIGINS.includes(origin)) return {};
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Max-Age': '600',
+  };
+}
+
+/** Constant-time check of the Bearer token, when one is configured. */
+function authorized(req) {
+  if (!ACCESS_TOKEN) return true;
+  const header = req.headers.authorization ?? '';
+  const given = Buffer.from(header.startsWith('Bearer ') ? header.slice(7) : '');
+  const expected = Buffer.from(ACCESS_TOKEN);
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
 
 const keyPresent = Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || process.env.ANTHROPIC_PROFILE);
 let client = null;
@@ -210,7 +249,7 @@ async function serveStatic(req, res) {
     res.writeHead(400).end('Bad path');
     return;
   }
-  // Resolve inside dist/ only — blocks ../ traversal.
+  // Resolve inside dist/ only, which blocks ../ traversal.
   let file = path.resolve(DIST, '.' + rel);
   if (!file.startsWith(DIST + path.sep) && file !== DIST) {
     res.writeHead(403).end('Forbidden');
@@ -243,11 +282,24 @@ async function serveStatic(req, res) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
+
+  // CORS on every response (writeHead merges these with its own headers).
+  if (ALLOWED_ORIGINS.length) res.setHeader('Vary', 'Origin');
+  for (const [k, v] of Object.entries(corsHeaders(req))) res.setHeader(k, v);
+
+  // Preflight. Allowed origins get the headers above; others get none, so the browser blocks them.
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
   if (url.pathname === '/api/health' && req.method === 'GET') {
-    return sendJson(res, 200, { ok: true, model: MODEL, keyPresent });
+    return sendJson(res, 200, { ok: true, model: MODEL, keyPresent, authRequired: Boolean(ACCESS_TOKEN) });
   }
   if (url.pathname === '/api/coach') {
     if (req.method !== 'POST') return sendJson(res, 405, { error: 'Use POST.' });
+    if (!authorized(req)) return sendJson(res, 401, { error: 'Access token missing or wrong. Enter it in Profile, AI coach.' });
     return handleCoach(req, res);
   }
   if (url.pathname.startsWith('/api/')) return sendJson(res, 404, { error: 'Not found.' });
@@ -257,6 +309,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`\n  Forge OS running at http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}/`);
+  console.log(`  CORS: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(', ') : 'same-origin only'} · access token: ${ACCESS_TOKEN ? 'required' : 'not set'}`);
   console.log(
     `  AI coach: ${keyPresent
       ? `credentials found in environment (model ${MODEL})`

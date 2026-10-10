@@ -12,6 +12,7 @@ import type { BackupFile } from '../../db/database';
 import { mergeReminders } from '../../lib/reminders';
 import { diffKeys } from '../../lib/audit';
 import { notify } from '../../components/ReminderRunner';
+import { coachBaseUrl, coachFetch } from '../../lib/coachApi';
 import { fmtDateTimeIST } from '../../lib/dates';
 import type { Profile as P, GoalKey, Reminder, Supplement } from '../../db/types';
 
@@ -289,32 +290,67 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 
 function AiCoachSection() {
   const { settings, saveSettings } = useApp();
+  const toast = useToast();
   const [status, setStatus] = useState<string | null>(null);
+  const [url, setUrl] = useState(settings?.coachUrl ?? '');
+  const [token, setToken] = useState(settings?.coachToken ?? '');
   if (!settings) return null;
   const on = !!settings.aiCoachEnabled;
+  const dirty = url !== (settings.coachUrl ?? '') || token !== (settings.coachToken ?? '');
+
+  const saveConnection = async () => {
+    const clean = url.trim().replace(/\/+$/, '');
+    if (clean && !/^https?:\/\/[^\s]+$/i.test(clean)) {
+      toast('Server URL must start with http:// or https://');
+      return;
+    }
+    await saveSettings({ ...settings, coachUrl: clean || undefined, coachToken: token.trim() || undefined });
+    setUrl(clean);
+    toast('Coach connection saved');
+  };
+
   const check = async () => {
-    setStatus('Checking…');
+    setStatus('Checking');
+    const where = coachBaseUrl(settings) || 'this site';
     try {
-      const res = await fetch('/api/health');
+      const res = await coachFetch(settings, '/api/health');
       const body = await res.json();
-      setStatus(body.keyPresent ? `Server running · ${body.model} · credentials found` : `Server running · ${body.model} · no API key in its environment`);
+      const parts = [`Server reachable at ${where}`, body.model, body.keyPresent ? 'API key found' : 'no API key in its environment'];
+      if (body.authRequired) {
+        // An empty request is rejected before any API call, so this costs nothing.
+        const probe = await coachFetch(settings, '/api/coach', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+        parts.push(probe.status === 401 ? 'access token missing or wrong' : 'access token accepted');
+      }
+      setStatus(parts.join(' · '));
     } catch {
-      setStatus('No coach server reachable. Start it with `npm start` (or `npm run server` alongside `npm run dev`).');
+      setStatus(`Couldn't reach a coach server at ${where}. Check the URL, that the server is running, and that its ALLOWED_ORIGINS includes this site (${window.location.origin}).`);
     }
   };
+
   return (
     <>
       <SectionTitle>AI coach</SectionTitle>
-      <Card className="mb-3">
+      <Card>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold">Use Claude for coach answers</div>
-            <div className="text-xs text-muted">Off: the rule-based coach answers on this device. On: your question and a 4-week summary of your logs (no photos) go to your own Forge OS server, which calls Anthropic's API.</div>
+            <div className="text-sm font-medium">Use Claude for coach answers</div>
+            <div className="text-xs text-muted">Off: the rule-based coach answers on this device. On: your question and a 4-week summary of your logs (no photos) go to your Forge OS coach server, which calls Anthropic's API.</div>
           </div>
           <Toggle on={on} label="AI coach" onClick={() => saveSettings({ ...settings, aiCoachEnabled: !on })} />
         </div>
-        <button className="btn-ghost w-full mt-3 py-2 text-sm" onClick={check}>Check coach server</button>
-        {status && <div className="text-xs text-muted mt-2">{status}</div>}
+        <div className="mt-4 border-t border-border pt-4">
+          <Field label="Coach server URL" optional hint="Leave empty when the app and server run together (npm start). For a separate server, e.g. https://forge-coach.onrender.com">
+            <input className="field" inputMode="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder={import.meta.env.VITE_COACH_URL || 'Same as this site'} autoCapitalize="off" autoCorrect="off" />
+          </Field>
+          <Field label="Access token" optional hint="Only if the server sets COACH_ACCESS_TOKEN. Stored on this device only.">
+            <input className="field" type="password" value={token} onChange={(e) => setToken(e.target.value)} autoComplete="off" />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <button className="btn-ghost" onClick={saveConnection} disabled={!dirty}>Save</button>
+            <button className="btn-ghost" onClick={check}>Check coach server</button>
+          </div>
+          {status && <p className="mt-2 text-xs text-muted" role="status">{status}</p>}
+        </div>
       </Card>
     </>
   );
