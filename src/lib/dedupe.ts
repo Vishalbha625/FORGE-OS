@@ -1,7 +1,7 @@
 import type { RunRecord, NutritionEntry, StrengthRecord } from '../db/types';
 
 // Duplicate detection: flags likely double entries so the user can confirm.
-// Never blocks or silently drops — the athlete decides.
+// Never blocks or silently drops: the athlete decides.
 
 /** A run on the same day with the same distance (±0.05 km) and time (±5 s). */
 export function findDuplicateRun(

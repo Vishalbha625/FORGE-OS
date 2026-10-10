@@ -1,80 +1,114 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Home, Dumbbell, Utensils, Users, User, Plus, Sparkles, type LucideIcon } from 'lucide-react';
 import { useLog, type LogKind } from '../features/logging/QuickLog';
 import { ReminderRunner } from './ReminderRunner';
+import { ThemeSwitcher } from '../store/theme';
+import { LOG_ICONS } from './icons';
 
-const TABS = [
-  { to: '/', label: 'Home', icon: HomeIcon },
-  { to: '/training', label: 'Training', icon: DumbbellIcon },
-  { to: '/nutrition', label: 'Nutrition', icon: AppleIcon },
-  { to: '/community', label: 'Community', icon: UsersIcon },
-  { to: '/profile', label: 'Profile', icon: UserIcon },
+const TABS: { to: string; label: string; icon: LucideIcon }[] = [
+  { to: '/', label: 'Home', icon: Home },
+  { to: '/training', label: 'Training', icon: Dumbbell },
+  { to: '/nutrition', label: 'Nutrition', icon: Utensils },
+  { to: '/community', label: 'Community', icon: Users },
+  { to: '/profile', label: 'Profile', icon: User },
 ];
 
-const QUICK: { kind: LogKind; label: string; emoji: string }[] = [
-  { kind: 'run', label: 'Run', emoji: '🏃' },
-  { kind: 'strength', label: 'Gym sets', emoji: '🏋️' },
-  { kind: 'hyrox', label: 'HYROX', emoji: '🔥' },
-  { kind: 'meal', label: 'Meal', emoji: '🍽️' },
-  { kind: 'water', label: 'Water', emoji: '💧' },
-  { kind: 'weight', label: 'Weight', emoji: '⚖️' },
-  { kind: 'sleep', label: 'Sleep', emoji: '😴' },
-  { kind: 'steps', label: 'Steps', emoji: '👟' },
-  { kind: 'recovery', label: 'Recovery', emoji: '🧘' },
+const QUICK: { kind: LogKind; label: string }[] = [
+  { kind: 'run', label: 'Run' },
+  { kind: 'strength', label: 'Gym sets' },
+  { kind: 'hyrox', label: 'HYROX' },
+  { kind: 'meal', label: 'Meal' },
+  { kind: 'water', label: 'Water' },
+  { kind: 'weight', label: 'Weight' },
+  { kind: 'sleep', label: 'Sleep' },
+  { kind: 'steps', label: 'Steps' },
+  { kind: 'recovery', label: 'Recovery' },
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-full flex flex-col max-w-md mx-auto relative">
-      <main className="flex-1 px-4 pb-28 pt-2">{children}</main>
-      <ReminderRunner />
-      <QuickActionFab />
+    <div className="relative isolate min-h-full overflow-x-clip">
+      <Navbar />
+      <div className="relative mx-auto flex min-h-full max-w-md flex-col">
+        <main className="flex-1 px-4 pb-32 pt-1">{children}</main>
+        <ReminderRunner />
+        <QuickActionFab />
+      </div>
       <BottomNav />
     </div>
   );
 }
 
-export function AppHeader({ title, subtitle, right }: { title: string; subtitle?: string; right?: ReactNode }) {
-  const nav = useNavigate();
+export function Logo() {
   return (
-    <header className="pt-safe sticky top-0 z-30 -mx-4 px-4 pb-3 bg-bg/90 backdrop-blur border-b border-line/60 mb-3">
-      <div className="flex items-center justify-between pt-2">
-        <div>
-          <h1 className="text-xl font-extrabold tracking-tight">{title}</h1>
-          {subtitle && <p className="text-xs text-muted mt-0.5">{subtitle}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          {right}
-          <button
-            onClick={() => nav('/coach')}
-            className="h-9 pl-2.5 pr-3 rounded-full bg-accent/15 border border-accent/30 text-accent font-semibold text-sm flex items-center gap-1.5"
-            aria-label="Open coach"
-          >
-            ✦ Coach
+    <span className="inline-flex items-center gap-2">
+      {/* The logo is one of the few places orange is allowed. */}
+      <svg viewBox="0 0 24 24" className="h-6 w-6 text-brand" aria-hidden>
+        <path d="M7 4h11a1.5 1.5 0 0 1 0 3h-8.5v4.5H16a1.5 1.5 0 0 1 0 3H9.5V19a1.5 1.5 0 0 1-3 0V5.5A1.5 1.5 0 0 1 7 4z" fill="currentColor" />
+        <circle cx="18" cy="17.5" r="2" fill="currentColor" />
+      </svg>
+      <span className="font-brand text-xl font-medium tracking-tight">Forge OS</span>
+    </span>
+  );
+}
+
+/** Sticky and transparent; blurs only after the page scrolls. */
+function Navbar() {
+  const nav = useNavigate();
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 0);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
+  return (
+    <header className={`pt-safe sticky top-0 z-40 transition-[backdrop-filter,background-color] duration-300 ${scrolled ? 'bg-background/60 backdrop-blur-md' : 'bg-transparent'}`}>
+      <nav className="mx-auto flex max-w-md items-center justify-between gap-3 px-4 py-3">
+        <Link to="/" aria-label="Forge OS home">
+          <Logo />
+        </Link>
+        <div className="flex items-center gap-1">
+          <ThemeSwitcher />
+          <button onClick={() => nav('/coach')} className="btn-outline h-9 px-3" aria-label="Open coach">
+            <Sparkles className="h-4 w-4" aria-hidden /> Coach
           </button>
         </div>
-      </div>
+      </nav>
     </header>
+  );
+}
+
+/** Centred page title with an optional lead and actions. */
+export function AppHeader({ title, subtitle, right }: { title: string; subtitle?: ReactNode; right?: ReactNode }) {
+  return (
+    <div className="mb-5 mt-3 space-y-2">
+      <h1 className="page-title">{title}</h1>
+      {subtitle && <p className="mx-auto max-w-sm text-center text-sm text-muted">{subtitle}</p>}
+      {right && <div className="flex justify-center gap-2 pt-1">{right}</div>}
+    </div>
   );
 }
 
 function BottomNav() {
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 border-t border-line bg-surface/95 backdrop-blur pb-safe">
-      <div className="max-w-md mx-auto grid grid-cols-5">
+    <nav aria-label="Main" className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 backdrop-blur-md">
+      <div className="mx-auto grid max-w-md grid-cols-5">
         {TABS.map((t) => (
           <NavLink
             key={t.to}
             to={t.to}
             end={t.to === '/'}
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-semibold transition ${isActive ? 'text-accent' : 'text-muted'}`
+              `relative flex flex-col items-center justify-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${isActive ? 'text-foreground' : 'text-muted hover:text-foreground'}`
             }
           >
             {({ isActive }) => (
               <>
-                <t.icon active={isActive} />
+                {isActive && <span className="absolute top-0 h-px w-8 bg-highlight" aria-hidden />}
+                <t.icon className="h-5 w-5" strokeWidth={isActive ? 2 : 1.6} aria-hidden />
                 {t.label}
               </>
             )}
@@ -88,54 +122,50 @@ function BottomNav() {
 function QuickActionFab() {
   const [open, setOpen] = useState(false);
   const log = useLog();
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+  // The coach screen has its own input bar where this button would sit.
+  if (pathname === '/coach') return null;
   return (
     <>
-      {open && <div className="fixed inset-0 z-40 bg-black/50 animate-fade" onClick={() => setOpen(false)} />}
-      <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-2">
+      {open && <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm animate-fade" onClick={() => setOpen(false)} />}
+      <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-2" style={{ right: 'max(1rem, calc((100vw - 28rem) / 2 + 1rem))' }}>
         {open && (
-          <div className="grid grid-cols-3 gap-2 mb-1 animate-rise">
-            {QUICK.map((q) => (
-              <button
-                key={q.kind}
-                onClick={() => {
-                  setOpen(false);
-                  log(q.kind);
-                }}
-                className="w-20 h-20 rounded-2xl bg-surface border border-line flex flex-col items-center justify-center gap-1 shadow-card active:scale-95 transition"
-              >
-                <span className="text-2xl">{q.emoji}</span>
-                <span className="text-[10px] font-semibold text-muted">{q.label}</span>
-              </button>
-            ))}
+          <div className="mb-1 grid grid-cols-3 gap-2 animate-rise" role="menu" aria-label="Quick log">
+            {QUICK.map((q) => {
+              const Icon = LOG_ICONS[q.kind];
+              return (
+                <button
+                  key={q.kind}
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    log(q.kind);
+                  }}
+                  className="flex h-20 w-20 flex-col items-center justify-center gap-1.5 rounded-xl border bg-card text-foreground transition-colors hover:border-[color:var(--card-edge-hover)]"
+                  style={{ borderColor: 'var(--card-edge)' }}
+                >
+                  <Icon className="h-5 w-5" strokeWidth={1.7} aria-hidden />
+                  <span className="text-[11px] font-medium text-muted">{q.label}</span>
+                </button>
+              );
+            })}
           </div>
         )}
         <button
           onClick={() => setOpen((o) => !o)}
-          className={`w-14 h-14 rounded-full bg-accent text-black shadow-card flex items-center justify-center text-3xl font-light transition ${open ? 'rotate-45' : ''}`}
+          className="btn-solid h-14 w-14 p-0"
           aria-label="Quick log"
+          aria-expanded={open}
         >
-          +
+          <Plus className={`h-6 w-6 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-45' : ''}`} aria-hidden />
         </button>
       </div>
     </>
   );
-}
-
-// ── Icons (inline, theme-aware) ──────────────────────────────────────────────
-type IconP = { active?: boolean };
-const ic = (active?: boolean) => (active ? '#ff5a1f' : '#8b93a3');
-function HomeIcon({ active }: IconP) {
-  return (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ic(active)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /></svg>);
-}
-function DumbbellIcon({ active }: IconP) {
-  return (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ic(active)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5 17.5 17.5" /><path d="m3 7 1 1M20 16l1 1M7 3l1 1M16 20l1 1" /><rect x="2" y="9" width="4" height="6" rx="1" transform="rotate(-45 4 12)" /><rect x="18" y="9" width="4" height="6" rx="1" transform="rotate(-45 20 12)" /></svg>);
-}
-function AppleIcon({ active }: IconP) {
-  return (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ic(active)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 7c0-2 1.5-3.5 3.5-3.5" /><path d="M12 7c-2.5-2-6-1-7 1.5-1.2 3 .5 8 3 10 1 .8 2 .3 3-.2s2 .7 3 .2c2.5-2 4.2-7 3-10-1-2.5-4.5-3.5-7-1.5" /></svg>);
-}
-function UsersIcon({ active }: IconP) {
-  return (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ic(active)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" /><path d="M16 5.5a3 3 0 0 1 0 5.5M18 20c0-2.2-.8-3.8-2-4.8" /></svg>);
-}
-function UserIcon({ active }: IconP) {
-  return (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={ic(active)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" /></svg>);
 }

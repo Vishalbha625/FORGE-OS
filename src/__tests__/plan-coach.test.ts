@@ -19,7 +19,7 @@ describe('training plan (deliverable: full calendar to race day)', () => {
   });
   it('race day is race mode with all 8 HYROX stations', () => {
     const race = plan.find((w) => w.eventDate === '2027-01-24')!;
-    expect(race.title).toContain('Race Day');
+    expect(race.title).toMatch(/race day/i);
     expect(race.hyroxStations).toHaveLength(8);
   });
   it('planned daily runs match the weekly target (±2 km) outside race week', () => {

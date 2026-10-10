@@ -3,7 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './store/AppContext';
 import { ToastProvider } from './store/toast';
 import { LogProvider } from './features/logging/QuickLog';
-import { Layout } from './components/Layout';
+import { Layout, Logo } from './components/Layout';
+import { ThemeProvider } from './store/theme';
+import { ConfirmProvider } from './store/confirm';
 import { Onboarding } from './features/onboarding/Onboarding';
 import { Dashboard } from './features/dashboard/Dashboard';
 
@@ -32,9 +34,8 @@ function Gate() {
 
   if (loading) {
     return (
-      <div className="min-h-full flex flex-col items-center justify-center gap-3 text-muted">
-        <div className="text-4xl animate-pulse">🔥</div>
-        <div className="font-semibold">Forge OS</div>
+      <div className="flex min-h-screen items-center justify-center motion-safe:animate-pulse">
+        <Logo />
       </div>
     );
   }
@@ -70,10 +71,14 @@ function Gate() {
 
 export default function App() {
   return (
-    <AppProvider>
-      <ToastProvider>
-        <Gate />
-      </ToastProvider>
-    </AppProvider>
+    <ThemeProvider>
+      <AppProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <Gate />
+          </ConfirmProvider>
+        </ToastProvider>
+      </AppProvider>
+    </ThemeProvider>
   );
 }

@@ -1,7 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
+import { ClipboardList, Send } from 'lucide-react';
 import { useApp } from '../../store/AppContext';
 import { AppHeader } from '../../components/Layout';
-import { Chip, InfoNote } from '../../components/ui';
+import { Chip, InfoNote, Highlight } from '../../components/ui';
+import { useConfirm } from '../../store/confirm';
 import { answerQuestion, generateWeeklyReport } from '../../lib/coach';
 import { buildCoachContext } from '../../lib/coachContext';
 
@@ -23,13 +25,13 @@ const SUGGESTIONS = [
 ];
 
 const TAG_STYLE: Record<string, string> = {
-  fact: 'bg-good/15 text-good',
-  calculation: 'bg-info/15 text-info',
-  estimate: 'bg-warn/15 text-warn',
-  suggestion: 'bg-accent/15 text-accent',
-  missing: 'bg-muted/20 text-muted',
-  'AI · Claude': 'bg-accent/15 text-accent',
-  'rule-based': 'bg-surface-2 text-muted',
+  fact: 'border-good/40 text-good',
+  calculation: 'border-border text-foreground/80',
+  estimate: 'border-warn/40 text-warn',
+  suggestion: 'border-accent/40 text-accent',
+  missing: 'border-border text-muted',
+  'AI · Claude': 'border-accent/40 text-accent',
+  'rule-based': 'border-border text-muted',
 };
 
 async function askServer(question: string, context: unknown, history: { role: 'user' | 'assistant'; text: string }[]) {
@@ -52,11 +54,12 @@ export function Coach() {
   const { snapshot, profile, settings, saveSettings } = useApp();
   const aiOn = !!settings?.aiCoachEnabled;
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role: 'coach', text: `Hi ${profile?.displayName?.split(' ')[0] ?? ''}! I'm your Athlete Coach. I answer from your logged data only — I won't invent workouts, meals or metrics. Ask me anything, or tap a suggestion.`, tags: ['suggestion'] },
+    { role: 'coach', text: `Hi ${profile?.displayName?.split(' ')[0] ?? ''}! I'm your Athlete Coach. I answer from your logged data only, I won't invent workouts, meals or metrics. Ask me anything, or tap a suggestion.`, tags: ['suggestion'] },
   ]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, busy]);
 
@@ -89,45 +92,55 @@ export function Coach() {
   const weeklyReport = () => {
     const r = generateWeeklyReport(snapshot);
     const text = [
-      `📋 Weekly report (${r.weekStart} – ${r.weekEnd})`,
+      `Weekly report, ${r.weekStart} to ${r.weekEnd}`,
       `• Sessions: ${r.planned.completed}/${r.planned.total} completed${r.planned.missed ? `, ${r.planned.missed} missed` : ''}`,
       `• Running: ${r.running.actualKm} km actual vs ${r.running.plannedKm} km planned`,
       `• Strength sessions: ${r.strengthSessions}`,
       `• Nutrition: ${r.nutrition.daysLogged} days logged${r.nutrition.avgProtein ? `, ~${r.nutrition.avgProtein}g protein/day` : ''}`,
       `• Sleep: ${r.avgSleepHours !== undefined ? r.avgSleepHours + ' h avg' : 'no data'} · Steps: ${r.stepsAvg !== undefined ? r.stepsAvg + '/day' : 'no data'}`,
       r.recovery.concerns.length ? `• Recovery: ${r.recovery.concerns.join(' ')}` : '',
-      r.improvements.length ? `✅ ${r.improvements.join(' ')}` : '',
-      r.setbacks.length ? `⚠️ ${r.setbacks.join(' ')}` : '',
-      `\n🎯 Next week:\n${r.priorities.map((p, i) => `${i + 1}. ${p}`).join('\n')}`,
+      r.improvements.length ? `Going well: ${r.improvements.join(' ')}` : '',
+      r.setbacks.length ? `Watch: ${r.setbacks.join(' ')}` : '',
+      `\nNext week:\n${r.priorities.map((p, i) => `${i + 1}. ${p}`).join('\n')}`,
     ].filter(Boolean).join('\n');
     setMsgs((m) => [...m, { role: 'user', text: 'Generate my weekly report' }, { role: 'coach', text, tags: ['calculation'] }]);
   };
 
   const toggleAi = async () => {
     if (!settings) return;
-    if (!aiOn && !confirm('Turn on the AI coach?\n\nYour questions and a summary of your last 4 weeks of logs (no photos) will be sent to the Forge OS server you run, which forwards them to Anthropic\'s API. You need to run `npm start` with an ANTHROPIC_API_KEY. You can turn this off any time.')) return;
+    if (!aiOn && !(await confirm({
+      title: 'Turn on the AI coach?',
+      description: "Each question, plus a summary of your last 4 weeks of logs (no photos), goes to the Forge OS server you run, which sends it to Anthropic's API. You need `npm start` running with an ANTHROPIC_API_KEY. You can turn this off any time.",
+      confirmLabel: 'Turn on',
+      cancelLabel: 'Not now',
+    }))) return;
     await saveSettings({ ...settings, aiCoachEnabled: !aiOn });
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-7rem)]">
-      <AppHeader title="My Athlete Coach" subtitle={aiOn ? 'AI mode · Claude via your server' : 'Rule-based mode · fully offline'} />
+    <div className="flex min-h-[calc(100dvh-9rem)] flex-col">
+      <AppHeader
+        title="My Athlete Coach"
+        subtitle={aiOn ? <>Answers by <Highlight>Claude</Highlight>, grounded in your logs.</> : <>Answers from <Highlight>your own logs</Highlight>, fully offline.</>}
+      />
 
-      <div className="flex items-center justify-between mb-2 text-xs">
-        <span className="text-muted">{aiOn ? 'Sends a summary of your data to your coach server.' : 'Nothing leaves this device.'}</span>
-        <button onClick={toggleAi} className={`btn-chip ${aiOn ? 'bg-accent text-black border-accent' : 'bg-surface-2 text-text border-line'}`}>
+      <div className="mb-3 flex items-center justify-between gap-3 text-xs">
+        <span className="text-muted">{aiOn ? 'AI mode: sends a summary of your data to your coach server.' : 'Rule-based mode: nothing leaves this device.'}</span>
+        <button onClick={toggleAi} className={`btn-chip shrink-0 ${aiOn ? 'chip-on' : 'chip-off'}`} aria-pressed={aiOn}>
           {aiOn ? 'AI on' : 'Use AI'}
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-3 pb-3">
+      <div className="flex-1 space-y-3 pb-3" aria-live="polite">
         {msgs.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-line ${m.role === 'user' ? 'bg-accent text-black rounded-br-sm' : 'bg-surface border border-line rounded-bl-sm'}`}>
+            <div
+              className={`max-w-[85%] whitespace-pre-line px-3.5 py-2.5 text-sm ${m.role === 'user' ? 'rounded-xl rounded-br-sm bg-secondary' : 'card rounded-bl-sm'}`}
+            >
               {m.text}
               {m.role === 'coach' && m.tags && (
-                <div className="flex gap-1 mt-2 flex-wrap">
-                  {m.tags.map((t) => <span key={t} className={`pill ${TAG_STYLE[t] ?? 'bg-surface-2 text-muted'}`}>{t}</span>)}
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {m.tags.map((t) => <span key={t} className={`pill ${TAG_STYLE[t] ?? 'border-border text-muted'}`}>{t}</span>)}
                 </div>
               )}
             </div>
@@ -135,30 +148,36 @@ export function Coach() {
         ))}
         {busy && (
           <div className="flex justify-start">
-            <div className="rounded-2xl px-3.5 py-2.5 text-sm bg-surface border border-line text-muted animate-pulse">Thinking about your data…</div>
+            <div className="card px-3.5 py-2.5 text-sm text-muted motion-safe:animate-pulse">Reading your data</div>
           </div>
         )}
         {msgs.length <= 1 && (
           <>
-            <button className="btn-ghost w-full" onClick={weeklyReport}>📋 Generate weekly report</button>
+            <button className="btn-ghost w-full" onClick={weeklyReport}>
+              <ClipboardList className="h-4 w-4" aria-hidden /> Generate weekly report
+            </button>
             <div className="flex flex-wrap gap-1.5 pt-1">
               {SUGGESTIONS.map((s) => <Chip key={s} onClick={() => send(s)}>{s}</Chip>)}
             </div>
-            <InfoNote>Rule-based answers are tagged <b>fact</b> (your logged data), <b>calculation</b>, <b>estimate</b>, <b>suggestion</b>, or <b>missing</b> (not enough data). AI answers are tagged <b>AI · Claude</b>; they're grounded in your logs and cite dates.</InfoNote>
+            <InfoNote>
+              Rule-based answers are tagged <b>fact</b> (your logged data), <b>calculation</b>, <b>estimate</b>, <b>suggestion</b> or <b>missing</b> (not enough data). AI answers are tagged <b>AI · Claude</b> and cite the dates of the records they use.
+            </InfoNote>
           </>
         )}
         <div ref={endRef} />
       </div>
 
-      <div className="sticky bottom-0 bg-bg pt-2 pb-safe">
+      <div className="sticky bottom-16 bg-background/90 pb-2 pt-2 backdrop-blur-md">
         {msgs.length > 1 && (
-          <div className="flex gap-1.5 mb-2 overflow-x-auto">
+          <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
             {SUGGESTIONS.slice(0, 6).map((s) => <span key={s} className="shrink-0"><Chip onClick={() => send(s)}>{s}</Chip></span>)}
           </div>
         )}
         <div className="flex gap-2">
-          <input className="field" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask your coach…" onKeyDown={(e) => e.key === 'Enter' && send(input)} disabled={busy} />
-          <button className="btn-primary px-5" onClick={() => send(input)} disabled={busy}>Send</button>
+          <input className="field" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Ask your coach" aria-label="Ask your coach" onKeyDown={(e) => e.key === 'Enter' && send(input)} disabled={busy} />
+          <button className="btn-soft shrink-0" onClick={() => send(input)} disabled={busy} aria-label="Send">
+            <Send className="h-4 w-4" aria-hidden />
+          </button>
         </div>
       </div>
     </div>

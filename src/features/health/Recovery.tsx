@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
+import { HeartPulse, Plus } from 'lucide-react';
 import { useApp } from '../../store/AppContext';
 import { useLog } from '../../features/logging/QuickLog';
 import { AppHeader } from '../../components/Layout';
-import { Card, SectionTitle, StatTile, EmptyState, InfoNote } from '../../components/ui';
+import { Card, EmptyState, Highlight, InfoNote, SectionTitle, StatTile } from '../../components/ui';
 import { MiniLine } from '../../components/charts';
 import { computeDayStatus } from '../../lib/coach';
 import { addDays, fmtDate } from '../../lib/dates';
@@ -29,29 +30,29 @@ export function Recovery() {
 
   return (
     <div>
-      <AppHeader title="Recovery" subtitle="Subjective readiness" right={<button className="btn-primary px-3 py-1.5 text-sm" onClick={() => log('recovery')}>+ Log</button>} />
+      <AppHeader title="Recovery" subtitle={<>How <Highlight>ready</Highlight> you feel, day by day.</>} right={<button className="btn-outline" onClick={() => log('recovery')}><Plus className="h-4 w-4" aria-hidden /> Log</button>} />
 
       <Card className="mb-3">
         <div className="text-sm font-semibold mb-1">Today's guidance</div>
         <p className="text-sm text-muted">{status.reasons.join(' ')}</p>
-        {status.status === 'recovery' && <div className="mt-2"><InfoNote>Signals suggest reducing today's intensity — swap in easy aerobic work or extra mobility. This is rule-based guidance, not medical advice.</InfoNote></div>}
+        {status.status === 'recovery' && <div className="mt-2"><InfoNote>Signals suggest reducing today's intensity. Swap in easy aerobic work or extra mobility. This is rule-based guidance, not medical advice.</InfoNote></div>}
       </Card>
 
       <div className="grid grid-cols-4 gap-2 mb-3">
-        <StatTile label="Fatigue" value={avg('fatigue') ?? '—'} sub="7d" tone={(avg('fatigue') ?? 0) >= 4 ? 'bad' : 'default'} />
-        <StatTile label="Soreness" value={avg('soreness') ?? '—'} sub="7d" tone={(avg('soreness') ?? 0) >= 4 ? 'bad' : 'default'} />
-        <StatTile label="Motivation" value={avg('motivation') ?? '—'} sub="7d" tone="good" />
-        <StatTile label="Stress" value={avg('stress') ?? '—'} sub="7d" tone={(avg('stress') ?? 0) >= 4 ? 'warn' : 'default'} />
+        <StatTile label="Fatigue" value={avg('fatigue') ?? '–'} sub="7d" tone={(avg('fatigue') ?? 0) >= 4 ? 'bad' : 'default'} />
+        <StatTile label="Soreness" value={avg('soreness') ?? '–'} sub="7d" tone={(avg('soreness') ?? 0) >= 4 ? 'bad' : 'default'} />
+        <StatTile label="Motivation" value={avg('motivation') ?? '–'} sub="7d" tone="good" />
+        <StatTile label="Stress" value={avg('stress') ?? '–'} sub="7d" tone={(avg('stress') ?? 0) >= 4 ? 'warn' : 'default'} />
       </div>
 
       <SectionTitle>Fatigue (14 days, lower is better)</SectionTitle>
-      <Card className="mb-3"><MiniLine data={series.fatigue} color="#ef5e6b" /></Card>
+      <Card className="mb-3"><MiniLine data={series.fatigue} /></Card>
       <SectionTitle>Soreness (14 days)</SectionTitle>
-      <Card className="mb-3"><MiniLine data={series.soreness} color="#f5b945" /></Card>
+      <Card className="mb-3"><MiniLine data={series.soreness} /></Card>
 
       <SectionTitle>History</SectionTitle>
       {recs.length === 0 ? (
-        <EmptyState title="No recovery logs" hint="Log daily fatigue, soreness, motivation & stress." icon="🧘" action={<button className="btn-primary px-4 py-2 text-sm" onClick={() => log('recovery')}>Log recovery</button>} />
+        <EmptyState title="No recovery logs" hint="Log daily fatigue, soreness, motivation and stress." icon={HeartPulse} action={<button className="btn-soft" onClick={() => log('recovery')}>Log recovery</button>} />
       ) : (
         <div className="space-y-2">
           {recs.slice(0, 30).map((r) => (
@@ -60,7 +61,7 @@ export function Recovery() {
                 <span className="text-sm font-semibold">{fmtDate(r.eventDate)}</span>
                 <span className="text-xs text-muted">F{r.fatigue ?? '-'} · S{r.soreness ?? '-'} · M{r.motivation ?? '-'} · St{r.stress ?? '-'}</span>
               </div>
-              {r.pain && <div className="text-xs text-bad mt-1">⚠ {r.pain}</div>}
+              {r.pain && <div className="text-xs text-bad mt-1">Pain: {r.pain}</div>}
             </Card>
           ))}
         </div>

@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import type { StoreMap, StoreName } from './types';
 
 const DB_NAME = 'forge-os';
-// v2 adds the `audit` store. Upgrades are additive — existing data is kept.
+// v2 adds the `audit` store. Upgrades are additive: existing data is kept.
 const DB_VERSION = 2;
 
 // Stores keyed by `id`; most also index by eventDate for history queries.

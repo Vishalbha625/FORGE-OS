@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Forge OS — data model
+// Forge OS: data model
 // Every record keeps a stable identity, the real event date (used for sorting
 // and history), creation/update timestamps, and an explicit data source so that
 // manually entered data is never confused with imported/device data.
@@ -14,14 +14,14 @@ export interface BaseRecord {
   createdAt: string;
   /** ISO datetime (UTC) of the last edit. */
   updatedAt: string;
-  /** Where the data came from. Never guess — default to 'manual'. */
+  /** Where the data came from. Never guess: default to 'manual'. */
   source: DataSource;
   notes?: string;
 }
 
 /** A record anchored to a calendar day (YYYY-MM-DD in the athlete's timezone). */
 export interface DatedRecord extends BaseRecord {
-  /** The real day the event happened — drives history sorting, not createdAt. */
+  /** The real day the event happened: drives history sorting, not createdAt. */
   eventDate: string; // YYYY-MM-DD
 }
 
@@ -287,7 +287,7 @@ export interface BodyRecord extends DatedRecord {
   chestCm?: number;
   armCm?: number;
   thighCm?: number;
-  bodyFatPct?: number; // only if entered/measured — never estimated
+  bodyFatPct?: number; // only if entered/measured, never estimated
   photo?: string; // private data URL
 }
 

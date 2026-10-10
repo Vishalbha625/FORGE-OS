@@ -152,9 +152,9 @@ function buildPriorities(d: {
   profile: Profile | null;
 }): string[] {
   const pr: string[] = [];
-  if (d.sleepHrs !== undefined && d.sleepHrs < 7) pr.push('Prioritise sleep — aim for 7–8 h to support training adaptation.');
-  if (d.missed > 0) pr.push('Rebuild consistency — complete the planned key sessions (long run, tempo, HYROX).');
-  if (d.plannedKm > 0 && d.actualKm < d.plannedKm * 0.8) pr.push(`Close the running gap — you hit ${d.actualKm}/${d.plannedKm} km planned.`);
+  if (d.sleepHrs !== undefined && d.sleepHrs < 7) pr.push('Prioritise sleep: aim for 7–8 h to support training adaptation.');
+  if (d.missed > 0) pr.push('Rebuild consistency: complete the key sessions (long run, tempo, HYROX).');
+  if (d.plannedKm > 0 && d.actualKm < d.plannedKm * 0.8) pr.push(`Close the running gap: you ran ${d.actualKm} of ${d.plannedKm} km planned.`);
   const protTarget = d.profile?.proteinTarget;
   if (protTarget && d.avgProtein !== undefined && d.avgProtein < protTarget * 0.85)
     pr.push(`Raise protein toward ${protTarget} g/day (logged ≈ ${d.avgProtein} g).`);
@@ -162,7 +162,7 @@ function buildPriorities(d: {
   while (pr.length < 3) {
     const fillers = [
       'Keep easy runs easy (RPE 3–4) to protect quality sessions.',
-      'Practice HYROX transitions — small time savings compound.',
+      'Practise HYROX transitions: small time savings add up.',
       'Hydrate to target and keep carbs up around long runs.',
     ];
     const next = fillers[pr.length % fillers.length];
@@ -244,7 +244,7 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
     if (!found.length) return { text: `I have no logged ${liftName} sets yet. Log a strength session and I'll track your working weights.`, tags: ['missing'] };
     const last = found[0];
     const best = last.e.sets.filter((x) => x.weightKg).sort((a, b) => (b.weightKg ?? 0) - (a.weightKg ?? 0))[0];
-    return { text: `Your last ${last.e.name} was on ${fmtDate(last.date)} — top set ${best?.weightKg ?? '?'} kg × ${best?.reps ?? '?'} reps.`, tags: ['fact'] };
+    return { text: `Your last ${last.e.name} was on ${fmtDate(last.date)}, top set ${best?.weightKg ?? '?'} kg × ${best?.reps ?? '?'} reps.`, tags: ['fact'] };
   }
 
   // Sleep this week
@@ -267,7 +267,7 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
     const lines = [
       `${days} days to race day (${fmtDate(s.profile.raceDate)}).`,
       `This week's running so far: ${km} km.`,
-      sims ? `${sims} HYROX simulation/combo session(s) logged.` : 'No HYROX simulations logged yet — these matter most in the Specific phase.',
+      sims ? `${sims} HYROX simulation/combo session(s) logged.` : 'No HYROX simulations logged yet. These matter most in the Specific phase.',
       'This is a status summary from your logs, not a guarantee. Consistency on long runs, tempo and HYROX combos is what moves the needle.',
     ];
     return { text: lines.join('\n'), tags: ['calculation', 'suggestion'] };
@@ -280,7 +280,7 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
     const first = easy[0], last = easy[easy.length - 1];
     const delta = (first.avgPaceSecPerKm ?? 0) - (last.avgPaceSecPerKm ?? 0);
     const dir = delta > 0 ? 'faster' : delta < 0 ? 'slower' : 'unchanged';
-    return { text: `Easy pace went from ${fmtPace(first.avgPaceSecPerKm)} /km (${fmtDate(first.eventDate)}) to ${fmtPace(last.avgPaceSecPerKm)} /km (${fmtDate(last.eventDate)}) — ${Math.abs(delta)} s/km ${dir}. Correlation, not proof; conditions and effort vary.`, tags: ['calculation'] };
+    return { text: `Easy pace went from ${fmtPace(first.avgPaceSecPerKm)} /km (${fmtDate(first.eventDate)}) to ${fmtPace(last.avgPaceSecPerKm)} /km (${fmtDate(last.eventDate)}), ${Math.abs(delta)} s/km ${dir}. Correlation, not proof; conditions and effort vary.`, tags: ['calculation'] };
   }
 
   // Recovery
@@ -292,9 +292,9 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
     const sl = inRange(s.sleep, addDays(today, -6), today);
     const slh = sl.length ? round1(mean(sl.map((x) => x.durationMin / 60)) ?? 0) : undefined;
     const advice = (f ?? 0) >= 4 || (slh !== undefined && slh < 6)
-      ? 'Signals suggest easing off — consider reducing today\'s intensity or swapping in easy aerobic work.'
-      : 'Signals look manageable — proceed as planned and keep monitoring.';
-    return { text: `Last 7 days: avg fatigue ${f ? round1(f) : '—'}/5, soreness ${so ? round1(so) : '—'}/5${slh ? `, sleep ${slh} h` : ''}. ${advice}`, tags: ['calculation', 'suggestion'] };
+      ? 'Signals suggest easing off: consider reducing today\'s intensity or swapping in easy aerobic work.'
+      : 'Signals look manageable. Proceed as planned and keep checking in.';
+    return { text: `Last 7 days: avg fatigue ${f ? round1(f) : '–'}/5, soreness ${so ? round1(so) : '–'}/5${slh ? `, sleep ${slh} h` : ''}. ${advice}`, tags: ['calculation', 'suggestion'] };
   }
 
   // Priorities today
@@ -313,7 +313,7 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
   if (/compare.*month|month.*(compare|vs|previous)/.test(t)) {
     const thisMonth = monthKm(s.runs, today, 0);
     const lastMonth = monthKm(s.runs, today, -1);
-    return { text: `Running volume — this month: ${thisMonth} km; previous month: ${lastMonth} km. ${thisMonth > lastMonth ? 'Trending up.' : thisMonth < lastMonth ? 'Lower than last month.' : 'About the same.'}`, tags: ['calculation'] };
+    return { text: `Running volume this month: ${thisMonth} km. Previous month: ${lastMonth} km. ${thisMonth > lastMonth ? 'Trending up.' : thisMonth < lastMonth ? 'Lower than last month.' : 'About the same.'}`, tags: ['calculation'] };
   }
 
   // Eat after/before training (nutrition)
@@ -322,8 +322,8 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
     const remaining = s.profile.calorieTarget ? s.profile.calorieTarget - n.reduce((a, x) => a + (x.calories ?? 0), 0) : undefined;
     const pre = /before|pre/.test(t);
     const base = pre
-      ? 'Before a run/tempo: easy carbs 1–2 h prior — banana + oats, toast with honey, or a dash of dates. Keep fat/fibre low to avoid GI distress.'
-      : 'After training: protein + carbs within ~60 min — e.g. paneer/tofu bowl with rice, Greek yogurt + fruit + whey, or dal + roti. Rehydrate.';
+      ? 'Before a run/tempo: easy carbs 1–2 h before (banana and oats, toast with honey, or a few dates). Keep fat/fibre low to avoid GI distress.'
+      : 'After training: protein and carbs within about 60 min (a paneer or tofu bowl with rice, Greek yogurt with fruit and whey, or dal with roti). Rehydrate.';
     const veg = s.profile.diet.toLowerCase().includes('veg') ? ' (vegetarian options given.)' : '';
     return { text: `${base}${veg}${remaining !== undefined ? ` You have ~${round0(remaining)} kcal left today.` : ''}`, tags: ['suggestion'] };
   }
@@ -337,7 +337,7 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
   // Fallback
   return {
     text:
-      "I can answer from your logged data. Try: \"What's my workout today?\", \"How many km this week?\", \"How much protein today?\", \"Am I on track for HYROX?\", \"Summarize my last 7 days\", or \"What should I eat after training?\". I only use data you've logged — I won't invent workouts, meals or metrics.",
+      "I can answer from your logged data. Try: \"What's my workout today?\", \"How many km this week?\", \"How much protein today?\", \"Am I on track for HYROX?\", \"Summarize my last 7 days\", or \"What should I eat after training?\". I only use data you've logged, I won't invent workouts, meals or metrics.",
     tags: ['suggestion'],
   };
 }
@@ -379,7 +379,7 @@ export function computeDayStatus(s: Snapshot): { status: DayStatus; reasons: str
     return { status: 'recovery', reasons };
   }
   if (sleepLast && sleepLast.eventDate >= addDays(today, -1) && sleepLast.durationMin / 60 < 6) {
-    reasons.push(`Last sleep ${round1(sleepLast.durationMin / 60)} h — below 6 h.`);
+    reasons.push(`Last sleep was ${round1(sleepLast.durationMin / 60)} h, below 6 h.`);
     return { status: 'needs_attention', reasons };
   }
   if (!hasAnyToday) {

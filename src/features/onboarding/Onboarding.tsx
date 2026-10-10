@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
+import { ArrowUpRight, ChevronsDown, Loader2 } from 'lucide-react';
+import { Logo } from '../../components/Layout';
+import { ThemeSwitcher } from '../../store/theme';
 import { useApp, newRecord } from '../../store/AppContext';
 import { buildDefaultProfileDraft } from '../../lib/plan';
 import { DEFAULT_SUPPLEMENTS, GOAL_LABELS } from '../../lib/constants';
-import { Field, Chip, InfoNote, Bar } from '../../components/ui';
+import { AnimatedBadge, Bar, Chip, Field, InfoNote } from '../../components/ui';
 import { cmToFtIn, ftInToCm, ageFromDob, fmtPace, parseTimeToSec } from '../../lib/calc';
 import { fmtDate } from '../../lib/dates';
 import type { Profile, GoalKey, Supplement, Settings, Integration } from '../../db/types';
@@ -124,27 +127,31 @@ export function Onboarding() {
   };
 
   return (
-    <div className="min-h-full max-w-md mx-auto px-4 pt-safe pb-10 flex flex-col">
+    <div className="mx-auto flex min-h-screen max-w-md flex-col px-4 pb-6">
+      <header className="pt-safe flex items-center justify-between py-3">
+        <Logo />
+        <ThemeSwitcher />
+      </header>
       {step > 0 && (
-        <div className="py-4">
-          <div className="flex items-center justify-between mb-2 text-xs text-muted">
+        <div className="py-3">
+          <div className="mb-2 flex items-center justify-between text-xs text-muted">
             <span>Step {step} of {STEPS.length - 1}</span>
             <span>{STEPS[step]}</span>
           </div>
-          <Bar pct={(step / (STEPS.length - 1)) * 100} />
+          <Bar pct={(step / (STEPS.length - 1)) * 100} height={4} label="Onboarding progress" />
         </div>
       )}
 
       <div className="flex-1 animate-rise">
         {step === 0 && <Welcome onStart={next} />}
         {step === 1 && (
-          <StepWrap title="Basic profile" desc="Confirm or update these. Draft values come from your previously reported info — not verified current measurements.">
+          <StepWrap title="Basic profile" desc="Confirm or update these. Drafts come from what you reported before, not from current measurements.">
             <Field label="Display name"><input className="field" value={p.displayName ?? ''} onChange={(e) => set({ displayName: e.target.value })} placeholder="Your name" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Age"><input className="field" inputMode="numeric" value={p.age ?? ''} onChange={(e) => set({ age: num(e.target.value) })} /></Field>
               <Field label="Date of birth" optional><input type="date" className="field" value={p.dob ?? ''} onChange={(e) => set({ dob: e.target.value, age: ageFromDob(e.target.value) })} /></Field>
             </div>
-            <Field label="Height" hint={`≈ ${cmToFtIn(p.heightCm)} / ${p.heightCm ?? '—'} cm`}>
+            <Field label="Height" hint={`≈ ${cmToFtIn(p.heightCm)} / ${p.heightCm ?? '–'} cm`}>
               <div className="flex gap-2 items-center">
                 <input className="field" inputMode="numeric" value={ftIn.ft} onChange={(e) => { const ft = Number(e.target.value) || 0; setFtIn((s) => ({ ...s, ft })); set({ heightCm: ftInToCm(ft, ftIn.in) }); }} /> <span className="text-muted">ft</span>
                 <input className="field" inputMode="numeric" value={ftIn.in} onChange={(e) => { const inch = Number(e.target.value) || 0; setFtIn((s) => ({ ...s, in: inch })); set({ heightCm: ftInToCm(ftIn.ft, inch) }); }} /> <span className="text-muted">in</span>
@@ -158,11 +165,11 @@ export function Onboarding() {
               <Field label="Country"><input className="field" value={p.country ?? ''} onChange={(e) => set({ country: e.target.value })} /></Field>
               <Field label="Timezone"><input className="field" value={p.timezone ?? ''} onChange={(e) => set({ timezone: e.target.value })} /></Field>
             </div>
-            <InfoNote>Units are set to km, metres, kg, min/km, hours & minutes — your preference. Change later in Profile.</InfoNote>
+            <InfoNote>Units are set to km, metres, kg, min/km, hours & minutes, your preference. Change later in Profile.</InfoNote>
           </StepWrap>
         )}
         {step === 2 && (
-          <StepWrap title="Athletic goals" desc="Pick all that apply, then tap your primary goal (★).">
+          <StepWrap title="Athletic goals" desc="Pick all that apply, then pick your primary goal.">
             <div className="flex flex-wrap gap-2 mb-4">
               {(Object.keys(GOAL_LABELS) as GoalKey[]).map((g) => (
                 <Chip key={g} active={(p.goals ?? []).includes(g)} onClick={() => toggleGoal(g)}>{GOAL_LABELS[g]}</Chip>
@@ -172,7 +179,7 @@ export function Onboarding() {
               <Field label="Primary goal">
                 <div className="flex flex-wrap gap-2">
                   {(p.goals ?? []).map((g) => (
-                    <Chip key={g} active={p.primaryGoal === g} onClick={() => set({ primaryGoal: g })}>{p.primaryGoal === g ? '★ ' : ''}{GOAL_LABELS[g]}</Chip>
+                    <Chip key={g} active={p.primaryGoal === g} onClick={() => set({ primaryGoal: g })}>{GOAL_LABELS[g]}</Chip>
                   ))}
                 </div>
               </Field>
@@ -180,7 +187,7 @@ export function Onboarding() {
           </StepWrap>
         )}
         {step === 3 && (
-          <StepWrap title="Training background" desc="All optional — share what you know. Precise pace targets need a recent 5k/10k time.">
+          <StepWrap title="Training background" desc="All optional, share what you know. Precise pace targets need a recent 5k/10k time.">
             <Field label="Running experience" optional><input className="field" value={p.runningExperience ?? ''} onChange={(e) => set({ runningExperience: e.target.value })} placeholder="e.g. 2 years consistent" /></Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Weekly volume (km)"><input className="field" inputMode="decimal" value={p.weeklyVolumeKm ?? ''} onChange={(e) => set({ weeklyVolumeKm: num(e.target.value) })} /></Field>
@@ -206,7 +213,7 @@ export function Onboarding() {
           </StepWrap>
         )}
         {step === 4 && (
-          <StepWrap title="Nutrition" desc="Default diet is vegetarian — edit if needed.">
+          <StepWrap title="Nutrition" desc="Default diet is vegetarian, edit if needed.">
             <Field label="Dietary preference"><input className="field" value={p.diet ?? ''} onChange={(e) => set({ diet: e.target.value })} /></Field>
             <Field label="Allergies / intolerances" optional><input className="field" value={p.allergies ?? ''} onChange={(e) => set({ allergies: e.target.value })} /></Field>
             <Field label="Typical meal schedule" optional><input className="field" value={p.mealSchedule ?? ''} onChange={(e) => set({ mealSchedule: e.target.value })} placeholder="e.g. 8am, 1pm, 8pm + snack" /></Field>
@@ -216,7 +223,7 @@ export function Onboarding() {
             </div>
             <Field label="Food preferences" optional><input className="field" value={p.foodPreferences ?? ''} onChange={(e) => set({ foodPreferences: e.target.value })} /></Field>
             <Field label="Disliked foods" optional><input className="field" value={p.dislikedFoods ?? ''} onChange={(e) => set({ dislikedFoods: e.target.value })} /></Field>
-            <Field label="Supplements currently used" hint="Previously reported — confirm which you still take.">
+            <Field label="Supplements currently used" hint="Previously reported, confirm which you still take.">
               <div className="flex flex-wrap gap-2">
                 {DEFAULT_SUPPLEMENTS.map((s) => {
                   const active = supps.some((x) => x.name === s.name);
@@ -251,32 +258,32 @@ export function Onboarding() {
           </StepWrap>
         )}
         {step === 6 && (
-          <StepWrap title="Devices & integrations" desc="These are not yet connected. Automatic sync needs native integration/APIs — until then, logging is manual with the source clearly labelled.">
+          <StepWrap title="Devices & integrations" desc="These are not yet connected. Automatic sync needs native integration/APIs, until then, logging is manual with the source clearly labelled.">
             {INTEGRATIONS.map((i) => (
-              <div key={i.key} className="card p-3.5 mb-2.5 flex items-center justify-between">
+              <div key={i.key} className="card mb-2.5 flex items-center justify-between gap-3 p-3.5">
                 <div>
-                  <div className="font-semibold text-sm">{i.label}</div>
+                  <div className="text-sm font-medium">{i.label}</div>
                   <div className="text-xs text-muted">{i.provides}</div>
                 </div>
-                <span className="pill bg-muted/15 text-muted">Not available yet</span>
+                <span className="pill border-border text-muted">Not available yet</span>
               </div>
             ))}
-            <InfoNote tone="warn">No integration is active. The app won't display fake steps, sleep or heart-rate data — you'll enter these manually, marked as manual, until a supported connection exists.</InfoNote>
+            <InfoNote tone="warn">No integration is active. You'll type in steps, sleep and heart rate, labelled as manual, until a supported connection exists. Nothing is ever filled in for you.</InfoNote>
           </StepWrap>
         )}
         {step === 7 && <Confirm p={p} supps={supps} best5k={best5k} best10k={best10k} saving={saving} />}
       </div>
 
       {step > 0 && step < 7 && (
-        <div className="flex gap-3 pt-4 sticky bottom-0 bg-bg pb-safe">
-          <button className="btn-ghost flex-1" onClick={back}>Back</button>
-          <button className="btn-primary flex-1" onClick={next}>Continue</button>
+        <div className="pb-safe sticky bottom-0 flex gap-3 bg-background/90 pt-4 backdrop-blur-md">
+          <button className="btn-outline flex-1" onClick={back}>Back</button>
+          <button className="btn-solid flex-1" onClick={next}>Continue <ArrowUpRight className="-ml-1 h-4 w-4" aria-hidden /></button>
         </div>
       )}
       {step === 7 && !saving && (
-        <div className="flex gap-3 pt-4 sticky bottom-0 bg-bg pb-safe">
-          <button className="btn-ghost flex-1" onClick={back}>Back</button>
-          <button className="btn-primary flex-[2]" onClick={finish}>Create my dashboard →</button>
+        <div className="pb-safe sticky bottom-0 flex gap-3 bg-background/90 pt-4 backdrop-blur-md">
+          <button className="btn-outline flex-1" onClick={back}>Back</button>
+          <button className="btn-solid flex-[2]" onClick={finish}>Create my dashboard <ArrowUpRight className="-ml-1 h-4 w-4" aria-hidden /></button>
         </div>
       )}
     </div>
@@ -284,25 +291,37 @@ export function Onboarding() {
 }
 
 function Welcome({ onStart }: { onStart: () => void }) {
+  const [about, setAbout] = useState(false);
   return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center text-center">
-      <div className="text-6xl mb-4">🔥</div>
-      <h1 className="text-3xl font-extrabold tracking-tight">Forge OS</h1>
-      <p className="text-muted mt-2 mb-1">Your personal AI athlete assistant.</p>
-      <p className="text-sm text-muted/80 max-w-xs">Training, running, strength, HYROX, nutrition, sleep, recovery and a fitness community — in one place, on your phone.</p>
-      <div className="card p-4 mt-6 text-left text-sm text-muted max-w-xs">
-        We've pre-filled a few values from your previously reported info. You'll confirm each one — nothing is assumed current, and we never fabricate data.
+    <section className="flex min-h-[72vh] flex-col justify-center gap-y-3 sm:gap-y-4">
+      <AnimatedBadge>Your HYROX prep, in one place</AnimatedBadge>
+      <h1 className="text-[42px] font-semibold leading-[1.05] tracking-tight md:text-6xl">Train with a plan that knows you</h1>
+      <p className="mt-2 max-w-3xl text-base text-neutral-700 md:text-xl dark:text-neutral-400">
+        Training, running, strength, nutrition, sleep and recovery, guided by <span className="highlight">your own data</span> and nothing made up.
+      </p>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button className="btn-solid h-10" onClick={onStart}>
+          Start onboarding <ArrowUpRight className="-ml-1 h-4 w-4" aria-hidden />
+        </button>
+        <button className="btn-outline h-10" onClick={() => setAbout((a) => !a)} aria-expanded={about}>
+          How your data is used <ChevronsDown className="-ml-1 h-4 w-4" aria-hidden />
+        </button>
       </div>
-      <button className="btn-primary w-full max-w-xs mt-6" onClick={onStart}>Start onboarding</button>
-    </div>
+      {about && (
+        <div className="card mt-2 space-y-2 p-4 text-sm text-muted animate-rise">
+          <p>A few values from what you told us before are filled in as drafts. You confirm or change each one; nothing is assumed to be current.</p>
+          <p>Everything stays on this device unless you choose to share it. Forge OS never invents workouts, meals, sleep or measurements.</p>
+        </div>
+      )}
+    </section>
   );
 }
 
 function StepWrap({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-2xl font-extrabold tracking-tight">{title}</h2>
-      {desc && <p className="text-sm text-muted mt-1 mb-4">{desc}</p>}
+      <h2 className="text-2xl font-medium tracking-tight sm:text-3xl">{title}</h2>
+      {desc && <p className="mb-5 mt-1.5 text-sm text-muted">{desc}</p>}
       <div className="mt-2">{children}</div>
     </div>
   );
@@ -310,37 +329,39 @@ function StepWrap({ title, desc, children }: { title: string; desc?: string; chi
 
 function Confirm({ p, supps, best5k, best10k, saving }: { p: Partial<Profile>; supps: Supplement[]; best5k: string; best10k: string; saving: boolean }) {
   const rows: [string, string][] = [
-    ['Name', p.displayName || '—'],
-    ['Age', p.age ? String(p.age) : '—'],
-    ['Height', `${cmToFtIn(p.heightCm)} (${p.heightCm ?? '—'} cm)`],
-    ['Weight', p.weightKg ? `${p.weightKg} kg` : '—'],
-    ['Primary goal', p.primaryGoal ? GOAL_LABELS[p.primaryGoal] : '—'],
-    ['Race', `${p.raceDivision} · ${p.raceDate ? fmtDate(p.raceDate) : '—'}`],
-    ['Training start', p.trainingStartDate ? fmtDate(p.trainingStartDate) : '—'],
-    ['Weekly volume', p.weeklyVolumeKm ? `${p.weeklyVolumeKm} km` : '—'],
-    ['5k / 10k', `${best5k || '—'} / ${best10k || '—'}`],
-    ['Diet', p.diet || '—'],
+    ['Name', p.displayName || '–'],
+    ['Age', p.age ? String(p.age) : '–'],
+    ['Height', `${cmToFtIn(p.heightCm)} (${p.heightCm ?? '–'} cm)`],
+    ['Weight', p.weightKg ? `${p.weightKg} kg` : '–'],
+    ['Primary goal', p.primaryGoal ? GOAL_LABELS[p.primaryGoal] : '–'],
+    ['Race', `${p.raceDivision} · ${p.raceDate ? fmtDate(p.raceDate) : '–'}`],
+    ['Training start', p.trainingStartDate ? fmtDate(p.trainingStartDate) : '–'],
+    ['Weekly volume', p.weeklyVolumeKm ? `${p.weeklyVolumeKm} km` : '–'],
+    ['5k / 10k', `${best5k || '–'} / ${best10k || '–'}`],
+    ['Diet', p.diet || '–'],
     ['Supplements', supps.length ? supps.map((s) => s.name).join(', ') : 'none confirmed'],
-    ['Sleep / Steps', `${p.avgSleepHours ?? '—'} h · ${p.typicalSteps ?? '—'} steps`],
-    ['Water target', `${p.waterTargetMl ?? '—'} ml`],
+    ['Sleep / Steps', `${p.avgSleepHours ?? '–'} h · ${p.typicalSteps ?? '–'} steps`],
+    ['Water target', `${p.waterTargetMl ?? '–'} ml`],
   ];
   return (
     <div>
-      <h2 className="text-2xl font-extrabold tracking-tight">Confirm your profile</h2>
-      <p className="text-sm text-muted mt-1 mb-4">Review before we build your personalized dashboard and 15-week plan.</p>
-      <div className="card divide-y divide-line">
+      <h2 className="text-2xl font-medium tracking-tight sm:text-3xl">Confirm your profile</h2>
+      <p className="mb-5 mt-1.5 text-sm text-muted">Check these before we build your dashboard and <span className="highlight">15-week plan</span>.</p>
+      <div className="card divide-y divide-border">
         {rows.map(([k, v]) => (
           <div key={k} className="flex justify-between px-4 py-2.5 text-sm">
             <span className="text-muted">{k}</span>
-            <span className="font-semibold text-right max-w-[60%]">{v}</span>
+            <span className="max-w-[60%] text-right font-medium">{v}</span>
           </div>
         ))}
       </div>
       {saving && (
-        <div className="card p-5 mt-4 text-center">
-          <div className="text-2xl animate-pulse mb-1">⚙️</div>
-          <div className="font-semibold">Building your plan…</div>
-          <div className="text-xs text-muted">Generating training calendar through race day.</div>
+        <div className="card mt-4 flex items-center gap-3 p-5" role="status">
+          <Loader2 className="h-5 w-5 shrink-0 text-muted motion-safe:animate-spin" aria-hidden />
+          <div>
+            <div className="font-medium">Building your plan</div>
+            <div className="text-xs text-muted">Generating every session through race day.</div>
+          </div>
         </div>
       )}
     </div>

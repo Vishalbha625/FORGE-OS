@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp, newRecord, uid } from '../../store/AppContext';
 import { useToast } from '../../store/toast';
+import { useConfirmDuplicate } from '../../store/confirm';
 import { Field, Segmented, Chip, InfoNote } from '../../components/ui';
 import { parseTimeToSec, paceSecPerKm, fmtPace, fmtDuration, round1 } from '../../lib/calc';
 import { combineDateTime, sleepMinutes, todayISO, addDays } from '../../lib/dates';
@@ -42,6 +43,7 @@ function EditBanner({ existing }: { existing?: { createdAt: string; source: stri
 export function LogRunForm({ onDone, plan, existing }: { onDone: () => void; plan?: PlannedWorkout; existing?: RunRecord }) {
   const { save, today, data } = useApp();
   const toast = useToast();
+  const confirmDup = useConfirmDuplicate();
   const prefillRun = plan?.runs[0];
   const [date, setDate] = useState(existing?.eventDate ?? plan?.eventDate ?? today);
   const [kind, setKind] = useState<RunRecord['kind']>(existing?.kind ?? prefillRun?.kind ?? 'easy');
@@ -70,7 +72,7 @@ export function LogRunForm({ onDone, plan, existing }: { onDone: () => void; pla
       return;
     }
     const dup = findDuplicateRun(data.runs, { id: existing?.id, eventDate: date, distanceKm: round1(dist), durationSec: sec });
-    if (dup && !confirm(`A ${dup.distanceKm} km run in ${fmtDuration(dup.durationSec)} is already logged on ${date}. Save anyway?`)) return;
+    if (dup && !(await confirmDup(`A ${dup.distanceKm} km run in ${fmtDuration(dup.durationSec)} is already logged on ${date}. Save this one as well?`))) return;
     const rec = upsert<RunRecord>(existing, {
       eventDate: date,
       kind,
@@ -90,7 +92,7 @@ export function LogRunForm({ onDone, plan, existing }: { onDone: () => void; pla
   return (
     <div>
       <EditBanner existing={existing} />
-      {plan && !existing && <div className="mb-3"><InfoNote>Prefilled from the plan. Review and edit before saving — nothing is logged until you tap Save.</InfoNote></div>}
+      {plan && !existing && <div className="mb-3"><InfoNote>Prefilled from the plan. Review and edit before saving. Nothing is logged until you tap Save.</InfoNote></div>}
       <DateField value={date} onChange={setDate} />
       <Field label="Type">
         <Segmented
@@ -114,7 +116,7 @@ export function LogRunForm({ onDone, plan, existing }: { onDone: () => void; pla
       </div>
       <div className="card p-3 mb-3 flex items-center justify-between">
         <span className="text-sm text-muted">Average pace</span>
-        <span className="text-xl font-extrabold text-accent tabular-nums">{pace ? `${fmtPace(pace)} /km` : '—'}</span>
+        <span className="text-xl font-semibold text-accent tabular-nums">{pace ? `${fmtPace(pace)} /km` : '–'}</span>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="RPE (1–10)" optional>
@@ -146,6 +148,7 @@ interface EditExercise {
 export function LogStrengthForm({ onDone, plan, existing }: { onDone: () => void; plan?: PlannedWorkout; existing?: StrengthRecord }) {
   const { save, today, data } = useApp();
   const toast = useToast();
+  const confirmDup = useConfirmDuplicate();
   const [date, setDate] = useState(existing?.eventDate ?? plan?.eventDate ?? today);
   const [title, setTitle] = useState(existing?.title ?? plan?.title?.replace(/ \+ Easy run.*/, '') ?? 'Strength session');
   const init: EditExercise[] = existing
@@ -189,7 +192,7 @@ export function LogStrengthForm({ onDone, plan, existing }: { onDone: () => void
     }
     const finalTitle = title.trim() || 'Strength session';
     const dup = findDuplicateStrength(data.strength, { id: existing?.id, eventDate: date, title: finalTitle });
-    if (dup && !confirm(`"${dup.title}" is already logged on ${date}. Save another one?`)) return;
+    if (dup && !(await confirmDup(`"${dup.title}" is already logged on ${date}. Save a second session with the same name?`))) return;
     const rec = upsert<StrengthRecord>(existing, {
       eventDate: date,
       title: finalTitle,
@@ -256,7 +259,7 @@ export function LogHyroxForm({ onDone, plan, existing }: { onDone: () => void; p
   const { save, today } = useApp();
   const toast = useToast();
   const [date, setDate] = useState(existing?.eventDate ?? plan?.eventDate ?? today);
-  const [mode, setMode] = useState<HyroxRecord['mode']>(existing?.mode ?? (plan?.title.includes('Simulation') ? 'simulation' : 'station'));
+  const [mode, setMode] = useState<HyroxRecord['mode']>(existing?.mode ?? ((plan && /simulation/i.test(plan.title)) ? 'simulation' : 'station'));
   const [title, setTitle] = useState(existing?.title ?? plan?.title ?? 'HYROX session');
   const [stations, setStations] = useState<StationDraft[]>(() => {
     if (existing) {
@@ -354,6 +357,7 @@ export function LogHyroxForm({ onDone, plan, existing }: { onDone: () => void; p
 export function LogMealForm({ onDone, existing, date: initialDate }: { onDone: () => void; existing?: NutritionEntry; date?: string }) {
   const { save, today, data, settings, saveSettings } = useApp();
   const toast = useToast();
+  const confirmDup = useConfirmDuplicate();
   const [date, setDate] = useState(existing?.eventDate ?? initialDate ?? today);
   const [meal, setMeal] = useState<NutritionEntry['meal']>(existing?.meal ?? 'breakfast');
   const [name, setName] = useState(existing?.name ?? '');
@@ -386,7 +390,7 @@ export function LogMealForm({ onDone, existing, date: initialDate }: { onDone: (
       return;
     }
     const dup = findDuplicateMeal(data.nutrition, { id: existing?.id, eventDate: date, meal, name });
-    if (dup && !confirm(`"${dup.name}" is already logged for ${meal} on ${date}. Log it again?`)) return;
+    if (dup && !(await confirmDup(`"${dup.name}" is already logged for ${meal} on ${date}. Log it again?`))) return;
     const fields = {
       eventDate: date,
       meal,
@@ -426,7 +430,7 @@ export function LogMealForm({ onDone, existing, date: initialDate }: { onDone: (
       {!existing && saved.length > 0 && q.length < 2 && (
         <Field label="Your saved meals">
           <div className="flex flex-wrap gap-1.5">
-            {saved.slice(0, 8).map((m) => <Chip key={m.id} onClick={() => fill(m)}>★ {m.name}</Chip>)}
+            {saved.slice(0, 8).map((m) => <Chip key={m.id} onClick={() => fill(m)}>{m.name}</Chip>)}
           </div>
         </Field>
       )}
@@ -437,8 +441,8 @@ export function LogMealForm({ onDone, existing, date: initialDate }: { onDone: (
         <div className="card p-2 mb-3 -mt-2">
           {savedMatches.map((f) => (
             <button key={f.id} onClick={() => fill(f)} className="w-full text-left px-2 py-2 rounded-lg hover:bg-surface-2 flex justify-between text-sm">
-              <span>★ {f.name}</span>
-              <span className="text-muted">{f.calories ?? '—'} kcal · {f.protein ?? '—'}p</span>
+              <span>{f.name} <span className="text-muted">(saved)</span></span>
+              <span className="text-muted">{f.calories ?? '–'} kcal · {f.protein ?? '–'}p</span>
             </button>
           ))}
           {dbMatches.map((f) => (
@@ -461,10 +465,10 @@ export function LogMealForm({ onDone, existing, date: initialDate }: { onDone: (
       <Field label="Fibre (g)" optional><input className="field" inputMode="decimal" value={fiber} onChange={(e) => setFiber(e.target.value)} /></Field>
       {!existing && (
         <label className="flex items-center gap-2 mb-3 text-sm">
-          <input type="checkbox" checked={favourite} onChange={(e) => setFavourite(e.target.checked)} /> Save as a favourite meal ★
+          <input type="checkbox" checked={favourite} onChange={(e) => setFavourite(e.target.checked)} /> Save as a favourite meal
         </label>
       )}
-      <InfoNote>Values come from the built-in reference or your own entry. Leave a field blank if you don't know it — blank stays blank, it's never guessed.</InfoNote>
+      <InfoNote>Values come from the built-in reference or your own entry. Leave a field blank if you don't know it. Blank stays blank; it is never guessed.</InfoNote>
       <div className="h-3" />
       <button className="btn-primary w-full" onClick={submit}>{existing ? 'Save changes' : 'Save meal'}</button>
     </div>
@@ -496,14 +500,14 @@ export function LogWaterForm({ onDone }: { onDone: () => void }) {
       <div className="grid grid-cols-2 gap-3 mb-3">
         {quick.map((q) => (
           <button key={q} className="btn-ghost py-4 text-lg" onClick={() => add(q)}>
-            💧 {q} ml
+            {q} ml
           </button>
         ))}
       </div>
       <Field label="Custom amount (ml)">
         <div className="flex gap-2">
           <input className="field flex-1" inputMode="numeric" value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="300" />
-          <button className="btn-primary px-5" onClick={() => { const n = num(custom); if (n) add(n); else toast('Enter ml'); }}>Add</button>
+          <button className="btn-soft" onClick={() => { const n = num(custom); if (n) add(n); else toast('Enter ml'); }}>Add</button>
         </div>
       </Field>
     </div>
@@ -577,7 +581,7 @@ export function LogWeightForm({ onDone, existing }: { onDone: () => void; existi
       <Field label="Body fat %" optional hint="Only if measured (e.g. DEXA, calipers). Never estimated.">
         <input className="field" inputMode="decimal" value={bf} onChange={(e) => setBf(e.target.value)} />
       </Field>
-      <Field label="Progress photo" optional hint="🔒 Private. Stored only on this device and never shared or included in posts.">
+      <Field label="Progress photo" optional hint="Private. Stored only on this device and never shared or included in posts.">
         <input type="file" accept="image/*" onChange={onPhoto} className="text-sm text-muted" />
         {photo && (
           <div className="relative mt-2">
@@ -624,6 +628,7 @@ const hhmm = (iso: string) => {
 export function LogSleepForm({ onDone, existing }: { onDone: () => void; existing?: SleepRecord }) {
   const { save, today, profile, data } = useApp();
   const toast = useToast();
+  const confirmDup = useConfirmDuplicate();
   // eventDate = the morning you woke up.
   const [date, setDate] = useState(existing?.eventDate ?? today);
   const [bedtime, setBedtime] = useState(existing ? hhmm(existing.bedtime) : profile?.bedtime ?? '23:00');
@@ -648,7 +653,7 @@ export function LogSleepForm({ onDone, existing }: { onDone: () => void; existin
       return;
     }
     const other = data.sleep.find((s) => s.eventDate === date && s.id !== existing?.id);
-    if (other && !confirm(`Sleep is already logged for the night ending ${date}. Add another record (e.g. a nap)?`)) return;
+    if (other && !(await confirmDup(`Sleep is already logged for the night ending ${date}. Add another record, for example a nap?`))) return;
     const rec = upsert<SleepRecord>(existing, {
       eventDate: date,
       bedtime: bedISO,
@@ -675,12 +680,12 @@ export function LogSleepForm({ onDone, existing }: { onDone: () => void; existin
       </div>
       <div className="card p-3 mb-3 flex items-center justify-between">
         <span className="text-sm text-muted">Duration (handles midnight)</span>
-        <span className="text-xl font-extrabold text-info tabular-nums">{h}h {m.toString().padStart(2, '0')}m</span>
+        <span className="text-xl font-semibold text-info tabular-nums">{h}h {m.toString().padStart(2, '0')}m</span>
       </div>
       <Field label="Quality (1–5)">
         <div className="flex gap-2">
           {[1, 2, 3, 4, 5].map((n) => (
-            <button key={n} onClick={() => setQuality(n)} className={`flex-1 py-3 rounded-xl font-bold border ${quality === n ? 'bg-accent text-black border-accent' : 'bg-surface-2 border-line text-muted'}`}>{n}</button>
+            <button key={n} onClick={() => setQuality(n)} className={`flex-1 py-3 rounded-md font-semibold border transition-colors ${quality === n ? 'seg-on border-transparent' : 'border-border text-muted hover:text-foreground'}`}>{n}</button>
           ))}
         </div>
       </Field>
@@ -746,7 +751,7 @@ function Scale({ label, value, set }: { label: string; value: number; set: (n: n
     <Field label={label}>
       <div className="flex gap-2">
         {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} onClick={() => set(n)} className={`flex-1 py-3 rounded-xl font-bold border ${value === n ? 'bg-accent text-black border-accent' : 'bg-surface-2 border-line text-muted'}`}>{n}</button>
+          <button key={n} onClick={() => set(n)} className={`flex-1 py-3 rounded-md font-semibold border transition-colors ${value === n ? 'seg-on border-transparent' : 'border-border text-muted hover:text-foreground'}`}>{n}</button>
         ))}
       </div>
     </Field>
@@ -781,7 +786,7 @@ export function LogRecoveryForm({ onDone, existing }: { onDone: () => void; exis
       <Scale label="Muscle soreness (1 none – 5 severe)" value={soreness} set={setSoreness} />
       <Scale label="Motivation (1 low – 5 high)" value={motivation} set={setMotivation} />
       <Scale label="Stress (1 low – 5 high)" value={stress} set={setStress} />
-      <Field label="Pain / discomfort" optional hint="Note anything unusual. If pain persists, see a professional — don't train through it.">
+      <Field label="Pain / discomfort" optional hint="Note anything unusual. If pain persists, see a professional rather than training through it.">
         <input className="field" value={pain} onChange={(e) => setPain(e.target.value)} />
       </Field>
       <button className="btn-primary w-full" onClick={submit}>{sameDay ? 'Update recovery' : 'Save recovery'}</button>

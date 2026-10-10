@@ -12,7 +12,7 @@ describe('pace (acceptance test 4)', () => {
   it('rejects zero/negative inputs instead of dividing by zero', () => {
     expect(paceSecPerKm(0, 1800)).toBeUndefined();
     expect(paceSecPerKm(5, 0)).toBeUndefined();
-    expect(fmtPace(undefined)).toBe('—');
+    expect(fmtPace(undefined)).toBe('–');
   });
 });
 

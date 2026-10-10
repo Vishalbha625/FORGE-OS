@@ -1,31 +1,51 @@
 /** @type {import('tailwindcss').Config} */
+// ChaiUI on Tailwind 3 (see design/chaiui/references/tailwind3.md).
+// Tokens live as CSS variables in src/index.css (:root = light, .dark = dark).
+// Colour variables hold oklch channels so Tailwind opacity modifiers work.
+const oklch = (v) => `oklch(var(${v}) / <alpha-value>)`;
+
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        bg: '#0f1115',
-        surface: '#171a21',
-        'surface-2': '#1f232d',
-        line: '#2a2f3a',
-        muted: '#8b93a3',
-        text: '#e7eaf0',
-        accent: '#ff5a1f',
-        'accent-soft': '#ff7a47',
-        good: '#3ecf8e',
-        warn: '#f5b945',
-        bad: '#ef5e6b',
-        info: '#5aa9ff',
+        background: oklch('--background'),
+        foreground: oklch('--foreground'),
+        card: oklch('--card'),
+        primary: { DEFAULT: oklch('--primary'), foreground: oklch('--primary-foreground') },
+        secondary: oklch('--secondary'),
+        border: oklch('--border-c'),
+        brand: oklch('--brand'),
+        highlight: oklch('--highlight'),
+        // App aliases, mapped onto ChaiUI tokens.
+        bg: oklch('--background'),
+        surface: oklch('--card'),
+        'surface-2': oklch('--secondary'),
+        line: oklch('--border-c'),
+        muted: oklch('--muted-foreground'),
+        text: oklch('--foreground'),
+        accent: oklch('--highlight'), // cream highlight, never a fill
+        // Meaning colours: text or thin outline only.
+        good: oklch('--good'),
+        warn: oklch('--warn'),
+        bad: oklch('--bad'),
+        info: oklch('--special'), // the one purple "special" category
       },
       fontFamily: {
-        sans: ['"Inter"', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
-      },
-      boxShadow: {
-        card: '0 1px 0 0 rgba(255,255,255,0.03) inset, 0 8px 24px -12px rgba(0,0,0,0.6)',
+        sans: ['Manrope', 'system-ui', 'sans-serif'],
+        montserrat: ['Montserrat', 'system-ui', 'sans-serif'],
+        brand: ['Onest', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
-        xl: '1rem',
-        '2xl': '1.25rem',
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+        xl: 'calc(var(--radius) + 4px)',
+        '2xl': 'calc(var(--radius) + 6px)',
+      },
+      keyframes: {
+        'chai-spin': { to: { transform: 'translate(-50%, -50%) rotate(360deg)' } },
       },
     },
   },

@@ -10,7 +10,7 @@ export function paceSecPerKm(distanceKm: number, durationSec: number): number | 
 
 /** Format sec/km as "m:ss". */
 export function fmtPace(secPerKm?: number): string {
-  if (secPerKm === undefined || !isFinite(secPerKm) || secPerKm <= 0) return '—';
+  if (secPerKm === undefined || !isFinite(secPerKm) || secPerKm <= 0) return '–';
   const m = Math.floor(secPerKm / 60);
   const s = Math.round(secPerKm % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
@@ -18,7 +18,7 @@ export function fmtPace(secPerKm?: number): string {
 
 /** Format seconds as "h:mm:ss" or "m:ss". */
 export function fmtDuration(totalSec?: number): string {
-  if (totalSec === undefined || totalSec < 0) return '—';
+  if (totalSec === undefined || totalSec < 0) return '–';
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = Math.round(totalSec % 60);
@@ -27,7 +27,7 @@ export function fmtDuration(totalSec?: number): string {
 }
 
 export function fmtHrsMins(totalMin?: number): string {
-  if (totalMin === undefined || totalMin < 0) return '—';
+  if (totalMin === undefined || totalMin < 0) return '–';
   const h = Math.floor(totalMin / 60);
   const m = Math.round(totalMin % 60);
   if (h === 0) return `${m}m`;
@@ -113,7 +113,7 @@ export function estimateNutrition(p: Profile): NutritionEstimate {
   const factor = ACTIVITY_FACTOR[activity] ?? 1.6;
   const tdee = Math.round(bmr * factor);
 
-  // Goal-based adjustment — avoid aggressive restriction during endurance training.
+  // Goal-based adjustment: avoid aggressive restriction during endurance training.
   let calories = tdee;
   const rationale: string[] = [
     `BMR ≈ ${bmr} kcal (Mifflin–St Jeor).`,
@@ -121,7 +121,7 @@ export function estimateNutrition(p: Profile): NutritionEstimate {
   ];
   if (p.primaryGoal === 'fatloss') {
     calories = Math.round(tdee * 0.88); // mild deficit only
-    rationale.push('Mild 12% deficit for fat loss — kept conservative to protect endurance work.');
+    rationale.push('Mild 12% deficit for fat loss, kept small to protect endurance work.');
   } else if (p.primaryGoal === 'muscle') {
     calories = Math.round(tdee * 1.08);
     rationale.push('Slight 8% surplus to support muscle growth.');
@@ -135,7 +135,7 @@ export function estimateNutrition(p: Profile): NutritionEstimate {
   const carbCals = calories - protein * 4 - fat * 9;
   const carbs = Math.max(0, Math.round(carbCals / 4));
   rationale.push(`Protein ${protein} g (1.8 g/kg), fat ${fat} g (0.9 g/kg), carbs ${carbs} g fill the rest.`);
-  rationale.push('These are estimates, not exact measurements — edit any target to suit you.');
+  rationale.push('These are estimates, not measurements. Edit any target to suit you.');
 
   return { canEstimate: true, bmr, tdee, calories, protein, carbs, fat, rationale, missing: [] };
 }
@@ -153,7 +153,7 @@ export function ageFromDob(dob: string): number | undefined {
 // ── Unit helpers ──────────────────────────────────────────────────────────────
 
 export function cmToFtIn(cm?: number): string {
-  if (!cm) return '—';
+  if (!cm) return '–';
   const totalIn = cm / 2.54;
   const ft = Math.floor(totalIn / 12);
   const inch = Math.round(totalIn % 12);

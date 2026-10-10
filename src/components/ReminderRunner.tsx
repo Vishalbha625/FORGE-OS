@@ -17,7 +17,7 @@ function markFired(key: string, date: string) {
   try {
     localStorage.setItem(firedKey(key, date), '1');
   } catch {
-    /* storage unavailable — worst case a reminder repeats */
+    /* storage unavailable: worst case a reminder repeats */
   }
 }
 

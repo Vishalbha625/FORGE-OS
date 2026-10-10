@@ -54,6 +54,16 @@ included.
 
 ---
 
+## Design: ChaiUI
+
+The interface follows the **ChaiUI** design system (the chaicode.com look), using the
+`chaiui` and `chaiui-review` skills in `design/`. Because this is a Tailwind 3 project,
+the theme is ported per `references/tailwind3.md`: ChaiUI tokens as CSS variables in
+`src/index.css` (dark by default, light via the half-circle switch), Manrope / Montserrat / Onest,
+warm hairline cards with no shadow, one solid asymmetric button per screen, outline status
+chips, neutral progress, and orange only in the logo, link hovers and the badge glint.
+Destructive actions use a ChaiUI confirm dialog that focuses the safe choice first.
+
 ## What's inside (all working, offline)
 
 | Area | Highlights |

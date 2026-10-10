@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { AppHeader } from '../../components/Layout';
-import { Card, SectionTitle, Segmented, StatTile, NotEnoughData, InfoNote } from '../../components/ui';
+import { Card, Highlight, InfoNote, NotEnoughData, SectionTitle, Segmented, StatTile } from '../../components/ui';
 import { MiniBars, MiniLine } from '../../components/charts';
 import { generateWeeklyReport } from '../../lib/coach';
 import { addDays, startOfWeek, fmtDate } from '../../lib/dates';
@@ -13,7 +13,7 @@ export function Analytics() {
   const [tab, setTab] = useState<Tab>('running');
   return (
     <div>
-      <AppHeader title="Progress" subtitle="Real data, correct formulas" />
+      <AppHeader title="Progress" subtitle={<>Trends from <Highlight>your real records</Highlight>, never filled in.</>} />
       <WeeklyReportCard />
       <div className="my-3">
         <Segmented
@@ -42,17 +42,17 @@ function WeeklyReportCard() {
   const { snapshot } = useApp();
   const r = useMemo(() => generateWeeklyReport(snapshot), [snapshot]);
   return (
-    <Card className="bg-gradient-to-br from-surface to-surface-2">
+    <Card>
       <div className="flex justify-between items-center mb-2">
-        <span className="font-bold text-sm">Weekly report</span>
+        <span className="font-semibold text-sm">Weekly report</span>
         <span className="text-xs text-muted">{fmtDate(r.weekStart)}–{fmtDate(r.weekEnd)}</span>
       </div>
       <div className="grid grid-cols-3 gap-2 text-center mb-2">
-        <div><div className="text-lg font-extrabold">{r.planned.completed}/{r.planned.total}</div><div className="text-[10px] text-muted">sessions</div></div>
-        <div><div className="text-lg font-extrabold text-accent">{r.running.actualKm}</div><div className="text-[10px] text-muted">km run</div></div>
-        <div><div className="text-lg font-extrabold">{r.avgSleepHours ?? '—'}</div><div className="text-[10px] text-muted">h sleep</div></div>
+        <div><div className="text-lg font-semibold">{r.planned.completed}/{r.planned.total}</div><div className="text-[10px] text-muted">sessions</div></div>
+        <div><div className="text-lg font-semibold text-accent">{r.running.actualKm}</div><div className="text-[10px] text-muted">km run</div></div>
+        <div><div className="text-lg font-semibold">{r.avgSleepHours ?? '–'}</div><div className="text-[10px] text-muted">h sleep</div></div>
       </div>
-      <div className="text-xs text-muted">🎯 {r.priorities[0]}</div>
+      <div className="text-xs text-muted">Next: {r.priorities[0]}</div>
     </Card>
   );
 }
@@ -82,15 +82,15 @@ function RunningAnalytics() {
     <div>
       <div className="grid grid-cols-3 gap-2 mb-3">
         <StatTile label="Total" value={`${totalKm}`} sub="km logged" tone="accent" />
-        <StatTile label="Longest" value={longest ? `${round1(longest)}` : '—'} sub="km" />
+        <StatTile label="Longest" value={longest ? `${round1(longest)}` : '–'} sub="km" />
         <StatTile label="Runs" value={runs.length} sub="sessions" />
       </div>
       <SectionTitle>Weekly volume (km)</SectionTitle>
       <Card className="mb-3"><MiniBars data={weekly} unit=" km" /></Card>
       <SectionTitle>Easy pace trend (min/km)</SectionTitle>
-      <Card className="mb-3">{easyPace.length >= 2 ? <MiniLine data={easyPace} unit=" min/km" color="#3ecf8e" /> : <NotEnoughData what="easy pace" />}</Card>
+      <Card className="mb-3">{easyPace.length >= 2 ? <MiniLine data={easyPace} unit=" min/km" /> : <NotEnoughData what="easy pace" />}</Card>
       <SectionTitle>Tempo pace trend (min/km)</SectionTitle>
-      <Card className="mb-3">{tempoPace.length >= 2 ? <MiniLine data={tempoPace} unit=" min/km" color="#f5b945" /> : <NotEnoughData what="tempo pace" />}</Card>
+      <Card className="mb-3">{tempoPace.length >= 2 ? <MiniLine data={tempoPace} unit=" min/km" /> : <NotEnoughData what="tempo pace" />}</Card>
       {pb5k && <InfoNote>Best ~5k effort: {fmtDuration(pb5k.durationSec)} ({fmtPace(pb5k.avgPaceSecPerKm)}/km) on {fmtDate(pb5k.eventDate)}.</InfoNote>}
     </div>
   );
@@ -120,13 +120,13 @@ function StrengthAnalytics() {
       <SectionTitle>Sessions per week</SectionTitle>
       <Card className="mb-3"><MiniBars data={weeklySessions} /></Card>
       <SectionTitle>Weekly volume (kg)</SectionTitle>
-      <Card className="mb-3"><MiniBars data={volume} unit=" kg" color="#3ecf8e" /></Card>
+      <Card className="mb-3"><MiniBars data={volume} unit=" kg" /></Card>
       <SectionTitle>Muscle-group distribution (sets)</SectionTitle>
       <Card>
         {dist.map(([g, n]) => (
           <div key={g} className="mb-2 last:mb-0">
             <div className="flex justify-between text-xs mb-0.5"><span className="capitalize">{g}</span><span className="text-muted">{n} ({Math.round((n / totalSets) * 100)}%)</span></div>
-            <div className="w-full bg-surface-2 rounded-full h-2"><div className="h-2 rounded-full bg-accent" style={{ width: `${(n / totalSets) * 100}%` }} /></div>
+            <div className="w-full bg-border rounded-full h-1.5"><div className="h-1.5 rounded-full bg-foreground/80" style={{ width: `${(n / totalSets) * 100}%` }} /></div>
           </div>
         ))}
       </Card>
@@ -157,8 +157,8 @@ function NutritionAnalytics() {
       <SectionTitle>Daily calories (14 days)</SectionTitle>
       <Card className="mb-3"><MiniBars data={cals} unit=" kcal" target={profile?.calorieTarget} /></Card>
       <SectionTitle>Daily protein (14 days)</SectionTitle>
-      <Card className="mb-3"><MiniBars data={prot} unit=" g" color="#3ecf8e" target={profile?.proteinTarget} /></Card>
-      <InfoNote>Dashed line is your target. Blank days mean nothing logged — not zero intake.</InfoNote>
+      <Card className="mb-3"><MiniBars data={prot} unit=" g" target={profile?.proteinTarget} /></Card>
+      <InfoNote>Dashed line is your target. Blank days mean nothing logged, not zero intake.</InfoNote>
     </div>
   );
 }
@@ -180,9 +180,9 @@ function RecoveryAnalytics() {
   return (
     <div>
       <SectionTitle>Sleep duration (14 days, h)</SectionTitle>
-      <Card className="mb-3"><MiniBars data={sleep} unit="h" color="#5aa9ff" target={7} /></Card>
+      <Card className="mb-3"><MiniBars data={sleep} unit="h" target={7} /></Card>
       <SectionTitle>Fatigue (14 days)</SectionTitle>
-      <Card className="mb-3"><MiniLine data={fatigue} color="#ef5e6b" /></Card>
+      <Card className="mb-3"><MiniLine data={fatigue} /></Card>
     </div>
   );
 }

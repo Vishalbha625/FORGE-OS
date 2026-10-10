@@ -1,25 +1,25 @@
 import type { HyroxStationPlan, MuscleGroup } from '../db/types';
 
-// HYROX Men Open station standards — CONFIGURABLE and flagged for confirmation.
+// HYROX Men Open station standards: CONFIGURABLE and flagged for confirmation.
 // Loads vary by event/division; always confirm against official rules for your race.
 export const HYROX_STATIONS: HyroxStationPlan[] = [
   { station: 'SkiErg', target: '1000 m', notes: 'Full-body pull. Confirm distance for your division.' },
-  { station: 'Sled Push', target: '50 m', loadKg: 152, notes: 'Men Open sled+load ≈ 152 kg — confirm for your event.' },
-  { station: 'Sled Pull', target: '50 m', loadKg: 103, notes: 'Men Open sled+load ≈ 103 kg — confirm for your event.' },
+  { station: 'Sled Push', target: '50 m', loadKg: 152, notes: 'Men Open sled plus load ≈ 152 kg. Confirm for your event.' },
+  { station: 'Sled Pull', target: '50 m', loadKg: 103, notes: 'Men Open sled plus load ≈ 103 kg. Confirm for your event.' },
   { station: 'Burpee Broad Jumps', target: '80 m', notes: 'Chest to floor, jump forward.' },
   { station: 'Row', target: '1000 m', notes: 'Confirm distance for your division.' },
-  { station: "Farmer's Carry", target: '200 m', loadKg: 24, notes: 'Men Open ≈ 2×24 kg — confirm.' },
-  { station: 'Sandbag Lunges', target: '100 m', loadKg: 20, notes: 'Men Open ≈ 20 kg — confirm.' },
-  { station: 'Wall Balls', target: '100 reps', loadKg: 6, notes: 'Men Open 6 kg to 3 m target — confirm.' },
+  { station: "Farmer's Carry", target: '200 m', loadKg: 24, notes: 'Men Open ≈ 2×24 kg. Confirm for your event.' },
+  { station: 'Sandbag Lunges', target: '100 m', loadKg: 20, notes: 'Men Open ≈ 20 kg. Confirm for your event.' },
+  { station: 'Wall Balls', target: '100 reps', loadKg: 6, notes: 'Men Open 6 kg to a 3 m target. Confirm for your event.' },
 ];
 
 // Strength exercise library by muscle group (names + brief cues).
-// No fixed kilogram loads are prescribed — progression is driven by logged data + RPE.
+// No fixed kilogram loads are prescribed: progression is driven by logged data + RPE.
 export const EXERCISE_LIBRARY: Record<MuscleGroup, { name: string; sets: number; reps: string; cue: string }[]> = {
   legs: [
     { name: 'Back Squat', sets: 4, reps: '5-8', cue: 'Brace, controlled descent, drive through mid-foot.' },
     { name: 'Romanian Deadlift', sets: 3, reps: '8-10', cue: 'Hinge, soft knees, feel hamstrings.' },
-    { name: 'Walking Lunge', sets: 3, reps: '10/leg', cue: 'Long stride, tall torso — carries over to HYROX lunges.' },
+    { name: 'Walking Lunge', sets: 3, reps: '10/leg', cue: 'Long stride, tall torso. Carries over to HYROX lunges.' },
     { name: 'Leg Press / Split Squat', sets: 3, reps: '10-12', cue: 'Full range, no bouncing.' },
     { name: 'Standing Calf Raise', sets: 3, reps: '12-15', cue: 'Pause at top.' },
   ],

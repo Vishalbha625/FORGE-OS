@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
+import { ChevronLeft, ChevronRight, Plus, Sparkles, Utensils } from 'lucide-react';
 import { useApp, newRecord } from '../../store/AppContext';
 import { useLog } from '../../features/logging/QuickLog';
 import { useToast } from '../../store/toast';
+import { useConfirmDelete, useConfirmDuplicate } from '../../store/confirm';
 import { AppHeader } from '../../components/Layout';
-import { Card, SectionTitle, Ring, Bar, EmptyState, InfoNote, Chip } from '../../components/ui';
+import { Bar, Card, Chip, EmptyState, Highlight, IconButton, InfoNote, Ring, SectionTitle } from '../../components/ui';
 import { estimateNutrition, round0 } from '../../lib/calc';
 import { answerQuestion } from '../../lib/coach';
 import { addDays, fmtDate, todayISO } from '../../lib/dates';
@@ -15,6 +17,7 @@ export function Nutrition() {
   const { profile, data, snapshot, remove, saveProfile } = useApp();
   const log = useLog();
   const toast = useToast();
+  const confirmDelete = useConfirmDelete();
   const [date, setDate] = useState(todayISO());
 
   const dayEntries = useMemo(() => data.nutrition.filter((n) => n.eventDate === date), [data.nutrition, date]);
@@ -44,13 +47,13 @@ export function Nutrition() {
 
   return (
     <div>
-      <AppHeader title="Nutrition" subtitle={profile.diet} />
+      <AppHeader title="Nutrition" subtitle={<>Your <Highlight>{profile.diet}</Highlight> food log, targets and hydration.</>} />
 
       {/* Date nav */}
-      <div className="flex items-center justify-between mb-3">
-        <button className="btn-ghost px-3 py-2" onClick={() => setDate(addDays(date, -1))}>‹</button>
-        <div className="font-semibold text-sm">{date === todayISO() ? 'Today' : fmtDate(date, { weekday: 'short' })}</div>
-        <button className="btn-ghost px-3 py-2 disabled:opacity-30" disabled={date >= todayISO()} onClick={() => setDate(addDays(date, 1))}>›</button>
+      <div className="mb-3 flex items-center justify-between">
+        <IconButton label="Previous day" onClick={() => setDate(addDays(date, -1))}><ChevronLeft className="h-4 w-4" aria-hidden /></IconButton>
+        <div className="text-sm font-medium">{date === todayISO() ? 'Today' : fmtDate(date, { weekday: 'short' })}</div>
+        <IconButton label="Next day" onClick={() => setDate(addDays(date, 1))} className={date >= todayISO() ? 'pointer-events-none opacity-30' : ''}><ChevronRight className="h-4 w-4" aria-hidden /></IconButton>
       </div>
 
       {/* Targets summary */}
@@ -59,8 +62,8 @@ export function Nutrition() {
           {est.canEstimate ? (
             <>
               <div className="font-semibold text-sm mb-1">Set your nutrition targets</div>
-              <p className="text-xs text-muted mb-2">Estimated for you: <b>{est.calories} kcal</b>, {est.protein}g protein, {est.carbs}g carbs, {est.fat}g fat. These are estimates, not exact — you can edit them.</p>
-              <button className="btn-primary w-full py-2.5 text-sm" onClick={applyEstimate}>Apply estimated targets</button>
+              <p className="text-xs text-muted mb-2">Estimated for you: <b>{est.calories} kcal</b>, {est.protein}g protein, {est.carbs}g carbs, {est.fat}g fat. These are estimates, not measurements, and you can edit them.</p>
+              <button className="btn-soft w-full" onClick={applyEstimate}>Apply estimated targets</button>
             </>
           ) : (
             <InfoNote tone="warn">Add {est.missing.join(', ')} in your profile to estimate nutrition targets. Until then, logs still total correctly.</InfoNote>
@@ -71,14 +74,14 @@ export function Nutrition() {
           <div className="flex items-center gap-4">
             <Ring pct={(totals.cal / calTarget) * 100} size={76} stroke={8}>
               <div className="text-center leading-tight">
-                <div className="text-base font-extrabold">{round0(totals.cal)}</div>
+                <div className="font-montserrat text-base font-semibold">{round0(totals.cal)}</div>
                 <div className="text-[9px] text-muted">/{calTarget}</div>
               </div>
             </Ring>
             <div className="flex-1 space-y-2">
-              <MacroBar label="Protein" val={totals.prot} target={protTarget ?? 0} color="#3ecf8e" unit="g" />
-              <MacroBar label="Carbs" val={totals.carb} target={profile.carbTarget ?? 0} color="#5aa9ff" unit="g" />
-              <MacroBar label="Fat" val={totals.fat} target={profile.fatTarget ?? 0} color="#f5b945" unit="g" />
+              <MacroBar label="Protein" val={totals.prot} target={protTarget ?? 0} unit="g" />
+              <MacroBar label="Carbs" val={totals.carb} target={profile.carbTarget ?? 0} unit="g" />
+              <MacroBar label="Fat" val={totals.fat} target={profile.fatTarget ?? 0} unit="g" />
             </div>
           </div>
           <div className="flex justify-between mt-3 text-xs text-muted">
@@ -92,13 +95,10 @@ export function Nutrition() {
       <NutritionCoach snapshot={snapshot} />
 
       {/* Meals */}
-      <div className="flex items-center justify-between mt-4 mb-2">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-muted">Meals</h2>
-        <button className="btn-primary px-4 py-2 text-sm" onClick={() => log('meal', { date })}>+ Add meal</button>
-      </div>
+      <SectionTitle action={<button className="btn-outline h-9 px-3" onClick={() => log('meal', { date })}><Plus className="h-4 w-4" aria-hidden /> Add meal</button>}>Meals</SectionTitle>
       <SavedMeals date={date} />
-      {dayEntries.length === 0 ? (
-        <EmptyState title="Nothing logged" hint="Add your first meal for this day." icon="🍽️" />
+      {dayEntries.filter((e) => !e.isSupplement).length === 0 ? (
+        <EmptyState title="Nothing logged for this day" hint="Add a meal, or tap a saved one above." icon={Utensils} />
       ) : (
         MEALS.map((m) => {
           const items = dayEntries.filter((e) => e.meal === m);
@@ -107,7 +107,7 @@ export function Nutrition() {
           return (
             <div key={m} className="mb-3">
               <div className="flex justify-between items-center mb-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-muted capitalize">{m}</span>
+                <span className="text-sm font-medium capitalize text-foreground/80">{m}</span>
                 <span className="text-xs text-muted">{mealCal} kcal</span>
               </div>
               <div className="space-y-1.5">
@@ -119,8 +119,8 @@ export function Nutrition() {
                         <div className="text-xs text-muted">{e.servingSize ?? ''} {e.calories ? `· ${e.calories} kcal` : ''} {e.protein ? `· ${e.protein}p` : ''}{e.carbs ? ` · ${e.carbs}c` : ''}{e.fat ? ` · ${e.fat}f` : ''}</div>
                       </div>
                       <div className="flex gap-3 shrink-0 ml-2">
-                        <button className="text-accent text-xs font-semibold" onClick={() => log('meal', { existing: e })}>Edit</button>
-                        <button className="text-muted text-xs" onClick={() => { if (confirm('Delete this entry?')) remove('nutrition', e.id); }}>Delete</button>
+                        <button className="link" onClick={() => log('meal', { existing: e })}>Edit</button>
+                        <button className="text-muted text-xs" onClick={async () => { if (await confirmDelete(`"${e.name}" from ${e.meal}`)) remove('nutrition', e.id); }}>Delete</button>
                       </div>
                     </div>
                   </Card>
@@ -132,13 +132,13 @@ export function Nutrition() {
       )}
 
       {/* Water + supplements */}
-      <SectionTitle action={<button className="text-xs text-accent font-semibold" onClick={() => log('water')}>+ Add</button>}>Hydration</SectionTitle>
+      <SectionTitle action={<button className="link" onClick={() => log('water')}>Add water</button>}>Hydration</SectionTitle>
       <Card className="mb-3">
         <div className="flex items-center justify-between">
           <span className="text-sm">{(water / 1000).toFixed(1)} L of {(profile.waterTargetMl / 1000).toFixed(1)} L</span>
-          <span className="text-sm font-bold text-info">{Math.round((water / profile.waterTargetMl) * 100)}%</span>
+          <span className="font-montserrat text-sm font-semibold">{Math.round((water / profile.waterTargetMl) * 100)}%</span>
         </div>
-        <div className="mt-2"><Bar pct={(water / profile.waterTargetMl) * 100} color="#5aa9ff" /></div>
+        <div className="mt-2"><Bar pct={(water / profile.waterTargetMl) * 100} /></div>
       </Card>
 
       <Supplements date={date} />
@@ -151,6 +151,7 @@ function SavedMeals({ date }: { date: string }) {
   const { settings, saveSettings, save, data } = useApp();
   const toast = useToast();
   const [manage, setManage] = useState(false);
+  const confirmDup = useConfirmDuplicate();
   const saved = settings?.savedMeals ?? [];
   if (!settings || !saved.length) return null;
 
@@ -158,7 +159,7 @@ function SavedMeals({ date }: { date: string }) {
     const m = saved.find((x) => x.id === id);
     if (!m) return;
     const dup = data.nutrition.find((e) => e.eventDate === date && e.meal === m.meal && e.name.toLowerCase() === m.name.toLowerCase());
-    if (dup && !confirm(`"${m.name}" is already logged for ${m.meal} on this day. Log it again?`)) return;
+    if (dup && !(await confirmDup(`"${m.name}" is already logged for ${m.meal} on this day. Log it again?`))) return;
     const rec = newRecord({
       eventDate: date, source: 'manual', meal: m.meal, name: m.name, servingSize: m.servingSize,
       calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber,
@@ -173,13 +174,13 @@ function SavedMeals({ date }: { date: string }) {
   return (
     <div className="mb-3">
       <div className="flex justify-between items-center mb-1.5">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">Saved meals · tap to log</span>
-        <button className="text-xs text-accent font-semibold" onClick={() => setManage((v) => !v)}>{manage ? 'Done' : 'Manage'}</button>
+        <span className="text-sm font-medium text-foreground/80">Saved meals, tap to log</span>
+        <button className="link" onClick={() => setManage((v) => !v)}>{manage ? 'Done' : 'Manage'}</button>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {saved.map((m) => (
           <Chip key={m.id} onClick={() => (manage ? removeSaved(m.id) : quickLog(m.id))}>
-            {manage ? '✕ ' : '★ '}{m.name}{m.calories ? ` · ${m.calories}` : ''}
+            {manage ? 'Remove ' : ''}{m.name}{m.calories ? ` · ${m.calories}` : ''}
           </Chip>
         ))}
       </div>
@@ -187,14 +188,14 @@ function SavedMeals({ date }: { date: string }) {
   );
 }
 
-function MacroBar({ label, val, target, color, unit }: { label: string; val: number; target: number; color: string; unit: string }) {
+function MacroBar({ label, val, target, unit }: { label: string; val: number; target: number; unit: string }) {
   return (
     <div>
       <div className="flex justify-between text-[11px] mb-0.5">
         <span className="text-muted">{label}</span>
-        <span className="tabular-nums">{round0(val)}{target ? `/${target}` : ''}{unit}</span>
+        <span className="tabular-nums">{round0(val)}{target ? ` / ${target}` : ''} {unit}</span>
       </div>
-      <Bar pct={target ? (val / target) * 100 : 0} color={color} height={6} />
+      <Bar pct={target ? (val / target) * 100 : 0} height={5} label={`${label} of target`} />
     </div>
   );
 }
@@ -211,16 +212,16 @@ function NutritionCoach({ snapshot }: { snapshot: ReturnType<typeof useApp>['sna
   };
 
   return (
-    <Card className="mb-3 bg-gradient-to-br from-surface to-surface-2">
-      <div className="font-semibold text-sm mb-1 flex items-center gap-1.5">✦ Ask My Nutrition Coach</div>
-      <div className="flex gap-2 mb-2">
-        <input className="field py-2 text-sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about your food log…" onKeyDown={(e) => e.key === 'Enter' && q && ask(q)} />
-        <button className="btn-primary px-4 text-sm" onClick={() => q && ask(q)}>Ask</button>
+    <Card className="mt-3">
+      <div className="mb-2 flex items-center gap-1.5 text-sm font-medium"><Sparkles className="h-4 w-4 text-highlight" aria-hidden /> Ask My Nutrition Coach</div>
+      <div className="mb-2 flex gap-2">
+        <input className="field py-2 text-sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask about your food log" aria-label="Ask the nutrition coach" onKeyDown={(e) => e.key === 'Enter' && q && ask(q)} />
+        <button className="btn-soft" onClick={() => q && ask(q)}>Ask</button>
       </div>
       <div className="flex flex-wrap gap-1.5">
         {suggestions.map((s) => <Chip key={s} onClick={() => ask(s)}>{s}</Chip>)}
       </div>
-      {a && <div className="text-sm mt-3 whitespace-pre-line bg-surface-2 rounded-xl p-3 border border-line">{a}</div>}
+      {a && <div className="mt-3 whitespace-pre-line rounded-lg border border-border p-3 text-sm" aria-live="polite">{a}</div>}
     </Card>
   );
 }
@@ -252,11 +253,11 @@ function Supplements({ date }: { date: string }) {
       <div className="flex flex-wrap gap-2 mb-3">
         {profile.supplements.filter((s) => s.active).map((s) => (
           <Chip key={s.name} active={!!takenToday(s.name)} onClick={() => toggle(s.name, s.serving)}>
-            {takenToday(s.name) ? '✓ ' : ''}{s.name}{s.serving ? ` (${s.serving})` : ''}
+            {s.name}{s.serving ? ` (${s.serving})` : ''}
           </Chip>
         ))}
       </div>
-      <InfoNote>Supplements are tracked separately from food. Dosage/timing guidance isn't prescribed here — follow product labels and professional advice.</InfoNote>
+      <InfoNote>Supplements are tracked separately from food. Forge OS doesn't prescribe doses or timing: follow the product label and professional advice.</InfoNote>
     </>
   );
 }

@@ -54,7 +54,7 @@ export function dueReminders(reminders: Reminder[], ctx: ReminderContext): DueRe
     if (!r.enabled || !r.time || ctx.now < r.time || ctx.firedToday(r.key)) continue;
     switch (r.key) {
       case 'workout':
-        if (ctx.plannedToday && !ctx.loggedToday) out.push({ key: r.key, title: 'Training today', body: "Today's session is waiting — open Forge OS to see it." });
+        if (ctx.plannedToday && !ctx.loggedToday) out.push({ key: r.key, title: 'Training today', body: "Today's session is waiting. Open Forge OS to see it." });
         break;
       case 'missing':
         if (ctx.plannedToday && !ctx.loggedToday) out.push({ key: r.key, title: 'Log your workout', body: "Did you train today? Log it so your history stays accurate. If you skipped it, that's fine too." });

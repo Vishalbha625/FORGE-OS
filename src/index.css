@@ -1,88 +1,207 @@
+/*
+ * ChaiUI theme for Forge OS (Tailwind 3 port of
+ * design/chaiui/references/tokens.css).
+ * Dark is the default: index.html puts class="dark" on <html> unless the
+ * athlete picked light. Colour tokens are oklch channels so Tailwind's
+ * opacity modifiers (bg-background/60) work.
+ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
-}
+@layer base {
+  :root {
+    --radius: 0.625rem;
+    --background: 1 0 0;
+    --foreground: 0.145 0 0;
+    --card: 1 0 0;
+    --primary: 0.205 0 0;
+    --primary-foreground: 0.985 0 0;
+    --secondary: 0.97 0 0;
+    --muted-foreground: 0.556 0 0;
+    --border-c: 0.922 0 0;
+    --brand: 0.666 0.179 58.318;
+    --highlight: 0.476 0.114 61.907; /* yellow-800 */
+    --good: 0.527 0.154 150.069; /* green-700 */
+    --warn: 0.554 0.135 66.442; /* yellow-700 */
+    --bad: 0.577 0.245 27.325; /* red-600 */
+    --special: 0.496 0.265 301.924; /* purple-700 */
+    --card-edge: rgb(120 53 15 / 0.15); /* amber-900/15 */
+    --card-edge-hover: rgb(120 53 15 / 0.3);
+    --card-fill: rgb(255 255 255 / 0.7);
+    color-scheme: light;
+  }
 
-html,
-body,
-#root {
-  height: 100%;
-}
+  .dark {
+    --background: 0.145 0 0;
+    --foreground: 0.985 0 0;
+    --card: 0.205 0 0;
+    --primary: 0.922 0 0;
+    --primary-foreground: 0.205 0 0;
+    --secondary: 0.269 0 0;
+    --muted-foreground: 0.708 0 0;
+    --border-c: 0.27 0 0; /* white/10 over the dark background */
+    --brand: 0.75 0.183 55.934;
+    --highlight: 0.954 0.038 75.164; /* orange-100 */
+    --good: 0.792 0.209 151.711; /* green-400 */
+    --warn: 0.852 0.199 91.936; /* yellow-400 */
+    --bad: 0.704 0.191 22.216; /* red-400 */
+    --special: 0.827 0.119 306.383; /* purple-300 */
+    --card-edge: rgb(255 247 237 / 0.15); /* orange-50/15 */
+    --card-edge-hover: rgb(255 247 237 / 0.3);
+    --card-fill: rgb(0 0 0 / 0.1);
+    color-scheme: dark;
+  }
 
-body {
-  margin: 0;
-  background: #0f1115;
-  color: #e7eaf0;
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  overscroll-behavior-y: none;
-}
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
 
-* {
-  -webkit-tap-highlight-color: transparent;
-}
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    margin: 0;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+  }
 
-/* thin, unobtrusive scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-thumb {
-  background: #2a2f3a;
-  border-radius: 8px;
-}
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
 
-input,
-select,
-textarea,
-button {
-  font-family: inherit;
-}
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+  }
 
-/* remove number input spinners */
-input[type='number']::-webkit-outer-spin-button,
-input[type='number']::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-input[type='number'] {
-  -moz-appearance: textfield;
+  :focus-visible {
+    outline: 2px solid oklch(var(--foreground) / 0.4);
+    outline-offset: 2px;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--border-c));
+    border-radius: 8px;
+  }
 }
 
 @layer components {
-  .card {
-    @apply bg-surface border border-line rounded-2xl shadow-card;
+  /* The highlight phrase: one per paragraph. */
+  .highlight {
+    @apply font-montserrat font-medium tracking-tight capitalize text-highlight;
   }
+
+  /* The warm hairline card: no shadow, faint fill, a little blur. */
+  .card {
+    border-radius: calc(var(--radius) + 4px);
+    border: 1px solid var(--card-edge);
+    background: var(--card-fill);
+    backdrop-filter: blur(4px);
+    transition:
+      border-color 300ms,
+      opacity 300ms;
+  }
+  .card-link {
+    cursor: pointer;
+  }
+  .card-link:hover {
+    border-color: var(--card-edge-hover);
+  }
+  @media (min-width: 640px) {
+    .card-link {
+      opacity: 0.9;
+    }
+    .card-link:hover {
+      opacity: 1;
+    }
+  }
+
   .field {
-    @apply w-full bg-surface-2 border border-line rounded-xl px-3.5 py-3 text-text placeholder:text-muted
-      outline-none focus:border-accent/70 focus:ring-2 focus:ring-accent/20 transition;
+    @apply w-full rounded-md border border-border bg-transparent px-3 py-2.5 text-base text-foreground
+      placeholder:text-muted outline-none transition-colors focus:border-foreground/40 dark:bg-white/[0.03];
   }
   .label {
-    @apply block text-xs font-semibold uppercase tracking-wide text-muted mb-1.5;
+    @apply mb-1.5 block text-sm font-medium text-foreground/80;
   }
+
+  /* Buttons. One solid per screen; the outline sits beside it. */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold
-      transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none select-none;
+    @apply inline-flex select-none items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium
+      transition-colors duration-200 disabled:pointer-events-none disabled:opacity-40;
   }
+  .btn-solid,
   .btn-primary {
-    @apply btn bg-accent text-black hover:bg-accent-soft;
+    @apply btn bg-neutral-900 text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-neutral-200;
+    border-radius: 0 var(--radius) 0 var(--radius);
   }
+  .btn-outline {
+    @apply btn border border-border bg-transparent hover:bg-neutral-100 dark:hover:bg-black/90;
+    border-radius: var(--radius) 0 var(--radius) 0;
+  }
+  /* On cards: the shadcn default. */
+  .btn-soft {
+    @apply btn rounded-md bg-primary font-semibold text-primary-foreground hover:bg-primary/90;
+  }
+  /* Quiet secondary actions ("View all" style). */
   .btn-ghost {
-    @apply btn bg-surface-2 text-text border border-line hover:border-accent/50;
+    @apply btn rounded-md bg-[#d4d4d866] text-[#52525b] hover:bg-[#d4d4d8] dark:bg-[#71717a33] dark:text-[#d4d4d8] dark:hover:bg-[#71717a55];
   }
+  /* Only inside a confirm dialog. */
+  .btn-danger {
+    @apply btn rounded-md bg-red-600 font-semibold text-white hover:bg-red-700;
+  }
+
   .btn-chip {
-    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium border transition;
+    @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors;
   }
+  .chip-off {
+    @apply border-border text-foreground/80 hover:border-foreground/30;
+  }
+  .chip-on {
+    @apply border-highlight/50 text-highlight;
+  }
+
+  /* Status: text and a thin outline, never a filled pill. */
   .pill {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium;
+  }
+
+  /* Segmented control: the one place a dark-brown fill is allowed. */
+  .seg-on {
+    @apply bg-orange-100 text-orange-900 dark:bg-orange-900/40 dark:text-orange-100;
+  }
+  .seg-off {
+    @apply text-muted hover:text-foreground;
+  }
+
+  .link {
+    @apply text-sm font-medium text-foreground/80 transition-colors hover:text-brand;
+  }
+
+  .page-title {
+    @apply text-center text-2xl font-medium tracking-tight sm:text-3xl;
+  }
+  .section-title {
+    @apply text-2xl font-medium tracking-tight sm:text-[30px];
   }
 }
 
-/* safe-area helpers for notched phones */
 .pt-safe {
   padding-top: max(env(safe-area-inset-top), 0.5rem);
 }
@@ -90,8 +209,16 @@ input[type='number'] {
   padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
 }
 
-.animate-rise {
-  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+@media (prefers-reduced-motion: no-preference) {
+  .animate-rise {
+    animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .animate-sheet {
+    animation: sheet 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .animate-fade {
+    animation: fade 0.2s ease-out;
+  }
 }
 @keyframes rise {
   from {
@@ -103,9 +230,6 @@ input[type='number'] {
     transform: translateY(0);
   }
 }
-.animate-sheet {
-  animation: sheet 0.26s cubic-bezier(0.22, 1, 0.36, 1);
-}
 @keyframes sheet {
   from {
     transform: translateY(100%);
@@ -113,9 +237,6 @@ input[type='number'] {
   to {
     transform: translateY(0);
   }
-}
-.animate-fade {
-  animation: fade 0.2s ease-out;
 }
 @keyframes fade {
   from {

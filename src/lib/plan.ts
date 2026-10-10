@@ -70,7 +70,7 @@ function intervalRun(km: number): PlannedRun {
 /** HYROX station block for a given phase. Rotates focus stations. */
 function hyroxFor(phase: string): HyroxStationPlan[] {
   if (phase === 'Base') {
-    // Familiarisation — a few stations, moderate effort.
+    // Familiarisation: a few stations, moderate effort.
     const focus = ['SkiErg', 'Row', 'Wall Balls', "Farmer's Carry"];
     return HYROX_STATIONS.filter((s) => focus.includes(s.station)).map((s) => ({
       ...s,
@@ -84,7 +84,7 @@ function hyroxFor(phase: string): HyroxStationPlan[] {
       notes: `${s.notes ?? ''} Compromised running between stations. RPE 6–7.`.trim(),
     }));
   }
-  // Specific / Taper — full station set, race-pace feel.
+  // Specific / Taper: full station set, race-pace feel.
   return HYROX_STATIONS.map((s) => ({ ...s }));
 }
 
@@ -129,7 +129,7 @@ export function generatePlan(opts: GenerateOptions): PlannedWorkout[] {
       let description = '';
 
       if (isRaceDay) {
-        title = '🏁 HYROX Race Day — Men Open';
+        title = 'HYROX race day, Men Open';
         focus = 'Race';
         types.push('hyrox', 'easy_run');
         hyroxStations = HYROX_STATIONS.map((s) => ({ ...s }));
@@ -142,28 +142,28 @@ export function generatePlan(opts: GenerateOptions): PlannedWorkout[] {
       }
 
       switch (dow) {
-        case 0: // Monday — Legs, Abs, Easy run
+        case 0: // Monday, Legs, Abs, Easy run
           title = deload ? 'Legs (light) + Abs + Easy run' : 'Legs + Abs + Easy run';
           focus = 'Lower body strength + aerobic base';
           types.push('strength', 'easy_run');
           exercises = makeExercises(['legs', 'abs'], deload);
           runs.push(run('easy', targetKm * RUN_SPLIT.mon, 3, 'Conversational easy run. Keep it truly easy (RPE 3–4).'));
           break;
-        case 1: // Tuesday — Tempo run, Chest, Triceps
+        case 1: // Tuesday, Tempo run, Chest, Triceps
           title = 'Tempo run + Chest + Triceps';
           focus = 'Threshold running + push strength';
           types.push('tempo_run', 'strength');
           runs.push(run('tempo', targetKm * RUN_SPLIT.tue, deload ? 5 : 6, 'Comfortably hard tempo (RPE 6–7). Steady, controlled.'));
           exercises = makeExercises(['chest', 'triceps'], deload);
           break;
-        case 2: // Wednesday — Long run, Back, Biceps
+        case 2: // Wednesday, Long run, Back, Biceps
           title = 'Long run + Back + Biceps';
           focus = 'Aerobic endurance + pull strength';
           types.push('long_run', 'strength');
           runs.push(run('long', targetKm * RUN_SPLIT.wed, 4, 'Long aerobic run (RPE 3–4). Build time on feet; fuel if >75 min.'));
           exercises = makeExercises(['back', 'biceps'], deload);
           break;
-        case 3: // Thursday — Tempo/Interval (alternating), Delts
+        case 3: // Thursday, Tempo/Interval (alternating), Delts
           {
             const useInterval = w % 2 === 0 && !deload && phase !== 'Base';
             title = (useInterval ? 'Intervals' : 'Tempo run') + ' + Delts';
@@ -177,7 +177,7 @@ export function generatePlan(opts: GenerateOptions): PlannedWorkout[] {
             exercises = makeExercises(['delts'], deload);
           }
           break;
-        case 4: // Friday — Easy run, Abs, HYROX conditioning
+        case 4: // Friday, Easy run, Abs, HYROX conditioning
           title = 'Easy run + Abs + HYROX conditioning';
           focus = 'HYROX-specific conditioning';
           types.push('easy_run', 'hyrox', 'strength');
@@ -187,9 +187,9 @@ export function generatePlan(opts: GenerateOptions): PlannedWorkout[] {
           description =
             phase === 'Specific' || phase === 'Taper / Race'
               ? 'Run + station combos at race feel. Minimise transitions.'
-              : 'Station circuit — focus on technique and pacing. Build toward race demands.';
+              : 'Station circuit: focus on technique and pacing, building toward race demands.';
           break;
-        case 5: // Saturday — Chest, Triceps, Easy run (lighter accessory)
+        case 5: // Saturday, Chest, Triceps, Easy run (lighter accessory)
           title = deload ? 'Rest / optional easy run' : 'Chest + Triceps (accessory) + Easy run';
           focus = deload ? 'Recovery' : 'Upper push volume + easy aerobic';
           if (deload) {
@@ -201,12 +201,12 @@ export function generatePlan(opts: GenerateOptions): PlannedWorkout[] {
             runs.push(run('easy', targetKm * RUN_SPLIT.sat, 3, 'Short easy run (RPE 3).'));
           }
           break;
-        case 6: // Sunday — Long or easy aerobic
+        case 6: // Sunday, Long or easy aerobic
           {
             const asLong = phase === 'Specific' && !deload;
             if (phase === 'Specific' && !deload && (w === 11 || w === 12 || w === 13)) {
               // Mini race simulation during specific phase.
-              title = '🧪 HYROX Mini-Simulation';
+              title = 'HYROX mini simulation';
               focus = 'Race-specific simulation';
               types.push('hyrox', 'long_run');
               hyroxStations = HYROX_STATIONS.map((s) => ({ ...s }));
@@ -227,10 +227,10 @@ export function generatePlan(opts: GenerateOptions): PlannedWorkout[] {
         for (const r of runs) {
           if (r.distanceKm) r.distanceKm = round1(Math.min(r.distanceKm, 5));
           r.targetRPE = Math.min(r.targetRPE ?? 4, 5);
-          r.description = 'Race week — short and sharp only. Prioritise freshness. ' + (r.description ?? '');
+          r.description = 'Race week: short and sharp only. Prioritise freshness. ' + (r.description ?? '');
         }
         exercises = exercises.slice(0, 1).map((e) => ({ ...e, sets: 2, targetRPE: 5 }));
-        description = 'Taper week — volume is intentionally low. Sleep, hydrate, carbs up. ' + description;
+        description = 'Taper week: volume is intentionally low. Sleep, hydrate and keep carbs up. ' + description;
       }
 
       out.push(mk(date, phase, w, title, types, focus, runs, exercises, hyroxStations, deload, warmup, cooldown, description, ts));
@@ -276,7 +276,7 @@ function mk(
   };
 }
 
-/** Sum of planned daily run distances for a week — used to validate vs target. */
+/** Sum of planned daily run distances for a week: used to validate vs target. */
 export function plannedWeeklyKm(workouts: PlannedWorkout[]): number {
   return round1(
     workouts.reduce(
@@ -291,7 +291,7 @@ export function weeklyTargetKm(week: number): number {
 }
 
 export function buildDefaultProfileDraft(): Partial<Profile> {
-  // Prepopulated DRAFT values from historical reports — shown for confirmation,
+  // Prepopulated DRAFT values from historical reports: shown for confirmation,
   // never assumed current. Source noted for transparency.
   return {
     displayName: '',
@@ -322,6 +322,6 @@ export function buildDefaultProfileDraft(): Partial<Profile> {
     typicalWaterMl: 3000,
     activityLevel: 'high',
     onboarded: false,
-    historicalSource: 'Previously reported values (dates unknown) — confirm during onboarding.',
+    historicalSource: 'Previously reported values (dates unknown), confirm during onboarding.',
   };
 }
