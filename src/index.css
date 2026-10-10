@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0f1115;
+  color: #e7eaf0;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* thin, unobtrusive scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2f3a;
+  border-radius: 8px;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+}
+
+/* remove number input spinners */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-line rounded-2xl shadow-card;
+  }
+  .field {
+    @apply w-full bg-surface-2 border border-line rounded-xl px-3.5 py-3 text-text placeholder:text-muted
+      outline-none focus:border-accent/70 focus:ring-2 focus:ring-accent/20 transition;
+  }
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-muted mb-1.5;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold
+      transition active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none select-none;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-black hover:bg-accent-soft;
+  }
+  .btn-ghost {
+    @apply btn bg-surface-2 text-text border border-line hover:border-accent/50;
+  }
+  .btn-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium border transition;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+}
+
+/* safe-area helpers for notched phones */
+.pt-safe {
+  padding-top: max(env(safe-area-inset-top), 0.5rem);
+}
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.5rem);
+}
+
+.animate-rise {
+  animation: rise 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-sheet {
+  animation: sheet 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes sheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.animate-fade {
+  animation: fade 0.2s ease-out;
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
