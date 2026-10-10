@@ -57,7 +57,17 @@ The app and the coach server are then on different domains, so the server sends 
 (`GET, POST, OPTIONS`; `Content-Type, Authorization`) and answers `OPTIONS` preflight with `204`,
 but only for the origins you allow.
 
-1. Render → New **Web Service** from this repo. Build `npm install`, start `npm run server`.
+`render.yaml` sets this up: Render → New → **Blueprint** → pick this repo, then enter
+`ANTHROPIC_API_KEY` when asked. It deploys `main`, installs only runtime dependencies
+(`npm ci --omit=dev`), starts `npm run server`, checks `/api/health`, allows
+`https://forge-os-black.vercel.app` and generates `COACH_ACCESS_TOKEN` for you.
+Don't build the frontend on Render: `vite build` runs out of memory on the free plan, and Vercel
+already serves the app.
+
+To set it up by hand instead:
+
+1. Render → New **Web Service** from this repo, branch `main`. Build `npm ci --omit=dev`, start
+   `npm run server`, health check path `/api/health`.
    (The server binds `0.0.0.0` automatically when Render's `RENDER` variable is set.)
 2. Render environment:
    - `ANTHROPIC_API_KEY` = your key

@@ -1,0 +1,27 @@
+# Render Blueprint for the Forge OS coach API (server/coach-server.mjs).
+# The app itself is hosted on Vercel, so this service never builds the frontend:
+# `vite build` needs more memory than Render's free plan gives Node.
+services:
+  - type: web
+    name: forge-os-coach
+    runtime: node
+    plan: free
+    branch: main
+    autoDeploy: true
+    buildCommand: npm ci --omit=dev
+    startCommand: npm run server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Your Vercel URL. Comma-separate if you add more (e.g. a custom domain).
+      - key: ALLOWED_ORIGINS
+        value: https://forge-os-black.vercel.app
+      # Render generates a random token. Copy it into Profile → AI coach on your phone.
+      - key: COACH_ACCESS_TOKEN
+        generateValue: true
+      # Entered in the Render dashboard; never committed.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: COACH_EFFORT
+        value: medium
