@@ -333,7 +333,7 @@ function AiCoachSection() {
       <Card>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-medium">Use Claude for coach answers</div>
+            <div className="text-sm font-medium">Use AI for coach answers</div>
             <div className="text-xs text-muted">Off: the rule-based coach answers on this device. On: your question and a 4-week summary of your logs (no photos) go to your Forge OS coach server, which calls Anthropic's API.</div>
           </div>
           <Toggle on={on} label="AI coach" onClick={() => saveSettings({ ...settings, aiCoachEnabled: !on })} />

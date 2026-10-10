@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "description": "Forge OS — a personal AI athlete assistant for HYROX, running, strength, nutrition and recovery.",
+  "author": "Vishal Bhardwaj",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

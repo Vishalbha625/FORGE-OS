@@ -1,6 +1,6 @@
 // Forge OS local server
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. POST /api/coach: answers coach questions with Claude, server-side, so the
+// 1. POST /api/coach: answers coach questions with the AI model, server-side, so the
 //    API key never reaches the browser.
 // 2. GET  /api/health: reports whether the coach is configured.
 // 3. Serves the built app from dist/ (with SPA fallback), so `npm start` runs

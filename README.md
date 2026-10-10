@@ -28,7 +28,7 @@ Requirements: Node 18+ (built & tested on Node 22).
 
 ### Turn on the AI coach (optional)
 
-The coach works offline with built-in rules. To get free-form answers from Claude:
+The coach works offline with built-in rules. To get free-form AI answers:
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...   # stays on the server, never sent to the browser
@@ -88,7 +88,7 @@ included.
 ## Design: ChaiUI
 
 The interface follows the **ChaiUI** design system (the chaicode.com look), using the
-`chaiui` and `chaiui-review` skills in `design/`. Because this is a Tailwind 3 project,
+`chaiui` and `chaiui-review` guides in `design/`. Because this is a Tailwind 3 project,
 the theme is ported per `references/tailwind3.md`: ChaiUI tokens as CSS variables in
 `src/index.css` (dark by default, light via the half-circle switch), Manrope / Montserrat / Onest,
 warm hairline cards with no shadow, one solid asymmetric button per screen, outline status
@@ -116,8 +116,7 @@ Destructive actions use a ChaiUI confirm dialog that focuses the safe choice fir
 
 ## Verified against the acceptance tests
 
-Pure-logic checks (`scratchpad/selftest`) and a headless-browser end-to-end run
-(`scratchpad/smoke`) confirm, among others:
+Unit tests (`npm test`) and a headless-browser end-to-end run confirm, among others:
 
 - ✅ Onboard with existing profile and correct old values
 - ✅ Phone-sized layout; log a run in one–two taps
@@ -172,3 +171,7 @@ Modular by design, so training, nutrition, social and integrations can evolve in
 ---
 
 *Your data lives on your device. Export a backup regularly (Profile → Data & backup).*
+
+---
+
+© 2026 Vishal Bhardwaj. Forge OS is created and owned by Vishal Bhardwaj.

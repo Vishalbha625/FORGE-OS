@@ -32,7 +32,7 @@ const TAG_STYLE: Record<string, string> = {
   estimate: 'border-warn/40 text-warn',
   suggestion: 'border-accent/40 text-accent',
   missing: 'border-border text-muted',
-  'AI · Claude': 'border-accent/40 text-accent',
+  AI: 'border-accent/40 text-accent',
   'rule-based': 'border-border text-muted',
 };
 
@@ -82,7 +82,7 @@ export function Coach() {
       try {
         const history = msgs.slice(1).slice(-8).map((m) => ({ role: m.role === 'user' ? 'user' as const : 'assistant' as const, text: m.text }));
         const answer = await askServer(settings, q, buildCoachContext(snapshot), history);
-        setMsgs((m) => [...m, { role: 'coach', text: answer, tags: ['AI · Claude'], ai: true }]);
+        setMsgs((m) => [...m, { role: 'coach', text: answer, tags: ['AI'], ai: true }]);
       } catch (err) {
         const fallback = answerQuestion(q, snapshot);
         const reason = err instanceof Error ? err.message : 'unavailable';
@@ -129,7 +129,7 @@ export function Coach() {
     <div className="flex min-h-[calc(100dvh-9rem)] flex-col">
       <AppHeader
         title="My Athlete Coach"
-        subtitle={aiOn ? <>Answers by <Highlight>Claude</Highlight>, grounded in your logs.</> : <>Answers from <Highlight>your own logs</Highlight>, fully offline.</>}
+        subtitle={aiOn ? <>Answers by <Highlight>AI</Highlight>, grounded in your logs.</> : <>Answers from <Highlight>your own logs</Highlight>, fully offline.</>}
       />
 
       <div className="mb-3 flex items-center justify-between gap-3 text-xs">
@@ -168,7 +168,7 @@ export function Coach() {
               {SUGGESTIONS.map((s) => <Chip key={s} onClick={() => send(s)}>{s}</Chip>)}
             </div>
             <InfoNote>
-              Rule-based answers are tagged <b>fact</b> (your logged data), <b>calculation</b>, <b>estimate</b>, <b>suggestion</b> or <b>missing</b> (not enough data). AI answers are tagged <b>AI · Claude</b> and cite the dates of the records they use.
+              Rule-based answers are tagged <b>fact</b> (your logged data), <b>calculation</b>, <b>estimate</b>, <b>suggestion</b> or <b>missing</b> (not enough data). AI answers are tagged <b>AI</b> and cite the dates of the records they use.
             </InfoNote>
           </>
         )}

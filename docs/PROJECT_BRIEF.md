@@ -4,6 +4,7 @@
 **[Type]:** Web App: a mobile-first Progressive Web App (installable on phone, works offline), plus a small optional Node server
 **[Tech Stack Summary]:** React 18 + TypeScript + Tailwind CSS 3 (ChaiUI design) + Vite  **+**  Node.js HTTP server (AI coach API, optional)  **+**  IndexedDB in the browser (today) / Supabase Postgres for the community (schema designed and tested, not yet wired)
 
+Owner: Vishal Bhardwaj
 Repository: https://github.com/Vishalbha625/FORGE-OS, branch `claude/vigilant-turing-wperw5`
 Brief written: 10 Oct 2026, against commit `54e08ed`.
 
@@ -21,7 +22,7 @@ Brief written: 10 Oct 2026, against commit `54e08ed`.
 
 Forge OS is a phone-first app built for one athlete (Vishal, 23, vegetarian) preparing for **HYROX Men Open on 24 January 2027**, with training starting **12 October 2026**. It generates a complete 15-week periodised training calendar (Base, Build, Specific, Taper) from his preferred weekly split, combining running (30 to 40 km a week to start), strength (legs, chest/triceps, back/biceps, delts, abs) and HYROX station work. Each day shows what to do, and logging a run, gym session, HYROX circuit, meal, water, sleep, steps, weight or recovery check-in takes one or two taps.
 
-Everything is stored on the device (IndexedDB), works offline and can be installed to the home screen. Planned workouts and completed workouts are kept strictly separate, every record carries its real event date and data source, edits and deletions are kept in an audit history, and nothing is ever filled in or invented: missing data is shown as missing. A built-in rule-based "My Athlete Coach" answers questions from the logs (today's workout, weekly kilometres, protein today, recovery, on track for HYROX), and an optional server-side Claude coach gives free-form answers without exposing an API key in the browser.
+Everything is stored on the device (IndexedDB), works offline and can be installed to the home screen. Planned workouts and completed workouts are kept strictly separate, every record carries its real event date and data source, edits and deletions are kept in an audit history, and nothing is ever filled in or invented: missing data is shown as missing. A built-in rule-based "My Athlete Coach" answers questions from the logs (today's workout, weekly kilometres, protein today, recovery, on track for HYROX), and an optional server-side AI coach gives free-form answers without exposing an API key in the browser.
 
 A Strava-inspired community feed lets the athlete share runs, sessions, PRs and weekly recaps with private / followers / public visibility. Today it is local-first (single user, on device). A Supabase backend with row-level privacy rules has been written and tested against a real Postgres database, but is not yet connected to the app. The interface follows the ChaiUI design system (the chaicode.com look).
 
@@ -164,7 +165,7 @@ Status key: **Done** = built and tested. **Partial** = works but with a stated g
 
 ### 3.13 My Athlete Coach: Must-have, Done
 - **Rule-based mode (default, offline):** answers ~13 intents (workout today and yesterday, km this week, protein today, last squat, sleep this week, on track for HYROX, pace trend, recovery, priorities, 7-day summary, month comparison, what to eat, next week). Each answer is tagged fact / calculation / estimate / suggestion / missing.
-- **AI mode (opt-in, consent dialog):** the app sends the question plus a 4-week summarised snapshot (no photos) to `POST /api/coach`; the server calls Claude. If the server or key is missing, the app falls back to the rule-based answer and says so.
+- **AI mode (opt-in, consent dialog):** the app sends the question plus a 4-week summarised snapshot (no photos) to `POST /api/coach`; the server calls the Anthropic API. If the server or key is missing, the app falls back to the rule-based answer and says so.
 - **On-demand weekly report:**
   - planned vs completed sessions;
   - planned vs actual km;
@@ -347,7 +348,7 @@ Supabase auto-generates REST endpoints per table (`/rest/v1/posts`, `/rest/v1/fo
 
 ```
 FORGE-OS/
-├── design/              ChaiUI design system skills (chaiui, chaiui-review)
+├── design/                     ChaiUI design system guides (chaiui, chaiui-review)
 ├── docs/PROJECT_BRIEF.md        this document
 ├── public/                      favicon.svg, icon-192.png, icon-512.png, apple-touch-icon.png
 ├── server/coach-server.mjs      Node API (coach) + static server for dist/
@@ -389,7 +390,7 @@ FORGE-OS/
 | Payment gateway | None (not needed) |
 | Email service | None |
 | Cloud storage | None today. Planned: Supabase Storage (private `post-photos` bucket) |
-| AI | **Anthropic Claude API** via `@anthropic-ai/sdk`, server-side, opt-in |
+| AI | **Anthropic API** via `@anthropic-ai/sdk`, server-side, opt-in |
 | Backend-as-a-service | **Supabase** (Postgres, Auth, Storage): schema ready, not connected |
 | Health/fitness APIs | Apple Health, Health Connect, Google Fit, Garmin, Fitbit, Strava: **not implemented** (need native app or partner API + OAuth) |
 | Fonts | Google Fonts (Manrope, Montserrat, Onest) loaded from fonts.googleapis.com |
@@ -562,7 +563,7 @@ FORGE-OS/
 7. Nutrition + targets + nutrition coach
 8. Strength + HYROX trackers
 9. Analytics + weekly report
-10. Rule-based coach + optional Claude coach server
+10. Rule-based coach + optional AI coach server
 11. Local community feed
 12. Reminders (foreground)
 13. ChaiUI design
