@@ -5,7 +5,7 @@
 **[Tech Stack Summary]:** React 18 + TypeScript + Tailwind CSS 3 (ChaiUI design) + Vite  **+**  Node.js HTTP server (AI coach API, optional)  **+**  IndexedDB in the browser (today) / Supabase Postgres for the community (schema designed and tested, not yet wired)
 
 Owner: Vishal Bhardwaj
-Repository: https://github.com/Vishalbha625/FORGE-OS, branch `claude/vigilant-turing-wperw5`
+Repository: https://github.com/Vishalbha625/FORGE-OS, branch `main`
 Brief written: 10 Oct 2026, against commit `54e08ed`.
 
 ---
@@ -456,7 +456,7 @@ FORGE-OS/
 
 - **Existing codebase:** Yes.
 - **Repo:** https://github.com/Vishalbha625/FORGE-OS
-- **Branch strategy:** all work so far is on `claude/vigilant-turing-wperw5` (the only branch; no `main` yet). Suggested next step: open a pull request into a new `main`, then use short-lived feature branches merged by pull request.
+- **Branch strategy:** all work is on `main`. Suggested next step: use short-lived feature branches merged into `main` by pull request.
 - **Commits so far:**
   1. Build the app.
   2. Edit history, AI coach server, reminders, Supabase schema, tests.
@@ -589,7 +589,7 @@ FORGE-OS/
 
 --- QUESTIONS FOR IMPLEMENTATION HELPER ---
 
-1. **Branching:** should `claude/vigilant-turing-wperw5` become `main`, or be merged into a new `main` via a pull request?
+1. **Branching:** should `main` be protected (changes only via pull request, CI required)?
 2. **Hosting:** where should the app and the coach server live (Vercel / Netlify + Render / Railway / a VPS)? A custom domain?
 3. **Health data in the cloud:** keep all health data on-device only (current design), or add an encrypted / owner-only cloud backup in Supabase? This decides the privacy model.
 4. **Community scope:** friends-only (invite / approve follows) or open public profiles? Is a moderator needed for reports?
