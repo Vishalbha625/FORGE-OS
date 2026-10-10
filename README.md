@@ -41,6 +41,16 @@ with server-side refusal fallback enabled. Override with `COACH_MODEL` / `COACH_
 (default `medium`). If the server or key is missing, answers fall back to the rule-based coach
 and say so.
 
+### Deploy to Vercel
+
+`vercel.json` is included. Import the repo in Vercel (framework preset **Vite**, build `npm run build`,
+output `dist`). It rewrites every route except `/assets/*` and `/api/*` to `index.html` (so deep links
+like `/training` work), caches hashed assets for a year, and never caches `sw.js` (so app updates reach
+installed phones). After the first deploy, check that `https://<your-app>/sw.js` returns JavaScript, not HTML.
+
+Vercel serves the app only. The AI coach server (`server/coach-server.mjs`) is a long-running Node
+process, so on Vercel the coach uses its offline rule-based mode unless you host the server elsewhere.
+
 ### Install on your phone (PWA)
 
 1. Deploy `dist/` to any static host (Netlify, Vercel, GitHub Pages, Cloudflare Pages) — or
