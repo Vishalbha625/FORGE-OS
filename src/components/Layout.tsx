@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useLog, type LogKind } from '../features/logging/QuickLog';
+import { ReminderRunner } from './ReminderRunner';
 
 const TABS = [
   { to: '/', label: 'Home', icon: HomeIcon },
@@ -27,6 +28,7 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-full flex flex-col max-w-md mx-auto relative">
       <main className="flex-1 px-4 pb-28 pt-2">{children}</main>
+      <ReminderRunner />
       <QuickActionFab />
       <BottomNav />
     </div>

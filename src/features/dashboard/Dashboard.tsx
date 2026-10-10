@@ -101,8 +101,8 @@ export function Dashboard() {
             </div>
           </div>
         </Card>
-        <StatTile label="Sleep" value={sleepToday && sleepToday.eventDate >= today ? fmtHrsMins(sleepToday.durationMin) : '—'} sub={sleepToday && sleepToday.eventDate >= today ? `quality ${sleepToday.quality ?? '—'}/5` : 'not logged'} tone="info" />
-        <StatTile label="Weight" value={weightLast ? `${weightLast.weightKg} kg` : '—'} sub={weightLast ? relativeDay(weightLast.eventDate) : 'not logged'} />
+        <StatTile onClick={() => nav('/sleep')} label="Sleep" value={sleepToday && sleepToday.eventDate >= today ? fmtHrsMins(sleepToday.durationMin) : '—'} sub={sleepToday && sleepToday.eventDate >= today ? `quality ${sleepToday.quality ?? '—'}/5` : 'not logged'} tone="info" />
+        <StatTile onClick={() => nav('/body')} label="Weight" value={weightLast ? `${weightLast.weightKg} kg` : '—'} sub={weightLast ? relativeDay(weightLast.eventDate) : 'not logged'} />
         <Card onClick={() => nav('/nutrition')}>
           <div className="text-[11px] uppercase tracking-wide text-muted font-semibold mb-1">Calories</div>
           <div className="text-lg font-extrabold tabular-nums">{calToday || '—'}{profile.calorieTarget ? <span className="text-xs text-muted font-medium"> / {profile.calorieTarget}</span> : ''}</div>
@@ -118,6 +118,12 @@ export function Dashboard() {
       {status.status === 'missing' && (
         <InfoNote>Some of today's data isn't logged yet. Forge OS shows real logs only — it won't display fake steps, sleep or calorie data.</InfoNote>
       )}
+
+      <div className="grid grid-cols-3 gap-2 mt-3">
+        <button className="btn-ghost py-2.5 text-xs" onClick={() => nav('/recovery')}>Recovery trends →</button>
+        <button className="btn-ghost py-2.5 text-xs" onClick={() => nav('/sleep')}>Sleep history →</button>
+        <button className="btn-ghost py-2.5 text-xs" onClick={() => nav('/body')}>Body progress →</button>
+      </div>
 
       {/* Priorities */}
       <SectionTitle action={<button className="text-xs text-accent font-semibold" onClick={() => nav('/analytics')}>Progress →</button>}>Today's focus</SectionTitle>

@@ -27,8 +27,19 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
-  server: { host: true, port: 5173 },
+  // In dev/preview, forward /api to the local coach server (npm run server).
+  server: { host: true, port: 5173, proxy: { '/api': 'http://127.0.0.1:8787' } },
+  preview: { proxy: { '/api': 'http://127.0.0.1:8787' } },
+  build: {
+    rollupOptions: {
+      output: {
+        // Keep the heavy chart library in its own cacheable chunk.
+        manualChunks: { charts: ['recharts'], vendor: ['react', 'react-dom', 'react-router-dom', 'idb'] },
+      },
+    },
+  },
 });

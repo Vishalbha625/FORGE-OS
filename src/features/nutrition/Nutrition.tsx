@@ -94,8 +94,9 @@ export function Nutrition() {
       {/* Meals */}
       <div className="flex items-center justify-between mt-4 mb-2">
         <h2 className="text-sm font-bold uppercase tracking-wider text-muted">Meals</h2>
-        <button className="btn-primary px-4 py-2 text-sm" onClick={() => log('meal')}>+ Add meal</button>
+        <button className="btn-primary px-4 py-2 text-sm" onClick={() => log('meal', { date })}>+ Add meal</button>
       </div>
+      <SavedMeals date={date} />
       {dayEntries.length === 0 ? (
         <EmptyState title="Nothing logged" hint="Add your first meal for this day." icon="🍽️" />
       ) : (
@@ -117,7 +118,10 @@ export function Nutrition() {
                         <div className="font-medium text-sm truncate">{e.name}</div>
                         <div className="text-xs text-muted">{e.servingSize ?? ''} {e.calories ? `· ${e.calories} kcal` : ''} {e.protein ? `· ${e.protein}p` : ''}{e.carbs ? ` · ${e.carbs}c` : ''}{e.fat ? ` · ${e.fat}f` : ''}</div>
                       </div>
-                      <button className="text-muted text-xs shrink-0 ml-2" onClick={() => { if (confirm('Delete this entry?')) remove('nutrition', e.id); }}>Delete</button>
+                      <div className="flex gap-3 shrink-0 ml-2">
+                        <button className="text-accent text-xs font-semibold" onClick={() => log('meal', { existing: e })}>Edit</button>
+                        <button className="text-muted text-xs" onClick={() => { if (confirm('Delete this entry?')) remove('nutrition', e.id); }}>Delete</button>
+                      </div>
                     </div>
                   </Card>
                 ))}
@@ -139,6 +143,46 @@ export function Nutrition() {
 
       <Supplements date={date} />
       <div className="h-6" />
+    </div>
+  );
+}
+
+function SavedMeals({ date }: { date: string }) {
+  const { settings, saveSettings, save, data } = useApp();
+  const toast = useToast();
+  const [manage, setManage] = useState(false);
+  const saved = settings?.savedMeals ?? [];
+  if (!settings || !saved.length) return null;
+
+  const quickLog = async (id: string) => {
+    const m = saved.find((x) => x.id === id);
+    if (!m) return;
+    const dup = data.nutrition.find((e) => e.eventDate === date && e.meal === m.meal && e.name.toLowerCase() === m.name.toLowerCase());
+    if (dup && !confirm(`"${m.name}" is already logged for ${m.meal} on this day. Log it again?`)) return;
+    const rec = newRecord({
+      eventDate: date, source: 'manual', meal: m.meal, name: m.name, servingSize: m.servingSize,
+      calories: m.calories, protein: m.protein, carbs: m.carbs, fat: m.fat, fiber: m.fiber,
+    }) as NutritionEntry;
+    await save('nutrition', rec);
+    toast(`${m.name} logged`);
+  };
+  const removeSaved = async (id: string) => {
+    await saveSettings({ ...settings, savedMeals: saved.filter((m) => m.id !== id) });
+  };
+
+  return (
+    <div className="mb-3">
+      <div className="flex justify-between items-center mb-1.5">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted">Saved meals · tap to log</span>
+        <button className="text-xs text-accent font-semibold" onClick={() => setManage((v) => !v)}>{manage ? 'Done' : 'Manage'}</button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {saved.map((m) => (
+          <Chip key={m.id} onClick={() => (manage ? removeSaved(m.id) : quickLog(m.id))}>
+            {manage ? '✕ ' : '★ '}{m.name}{m.calories ? ` · ${m.calories}` : ''}
+          </Chip>
+        ))}
+      </div>
     </div>
   );
 }

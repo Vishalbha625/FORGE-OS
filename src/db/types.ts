@@ -346,12 +346,41 @@ export interface Reminder {
   enabled: boolean;
 }
 
+export interface SavedMeal {
+  id: string;
+  name: string;
+  meal: NutritionEntry['meal'];
+  servingSize?: string;
+  calories?: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+  fiber?: number;
+}
+
 export interface Settings extends BaseRecord {
   reminders: Reminder[];
   quietHours?: { start: string; end: string };
   integrations: Integration[];
   waterServingMl: number;
   theme: 'dark';
+  savedMeals?: SavedMeal[];
+  /** Opt-in: send a summarized snapshot to the self-hosted coach server. */
+  aiCoachEnabled?: boolean;
+}
+
+// ── Audit history ─────────────────────────────────────────────────────────────
+
+export interface AuditEntry {
+  id: string;
+  at: string; // ISO datetime of the change
+  store: string;
+  recordId: string;
+  action: 'update' | 'delete';
+  eventDate?: string;
+  summary: string;
+  before?: unknown;
+  after?: unknown;
 }
 
 // ── Store map ─────────────────────────────────────────────────────────────────
@@ -370,5 +399,6 @@ export interface StoreMap {
   recovery: RecoveryRecord;
   social: SocialPost;
   settings: Settings;
+  audit: AuditEntry;
 }
 export type StoreName = keyof StoreMap;

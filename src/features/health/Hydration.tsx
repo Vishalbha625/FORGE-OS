@@ -1,32 +1,44 @@
 import { useMemo } from 'react';
-import { useApp } from '../../store/AppContext';
+import { useApp, newRecord } from '../../store/AppContext';
 import { useLog } from '../../features/logging/QuickLog';
+import { useToast } from '../../store/toast';
 import { AppHeader } from '../../components/Layout';
 import { Card, SectionTitle, Ring, EmptyState, InfoNote } from '../../components/ui';
 import { MiniBars } from '../../components/charts';
 import { addDays, fmtDate, fmtDateTimeIST } from '../../lib/dates';
-import { round0 } from '../../lib/calc';
+import { round0, round1 } from '../../lib/calc';
+import type { WaterEntry } from '../../db/types';
 
 export function Hydration() {
-  const { data, today, profile } = useApp();
+  const { data, today, profile, settings, save, remove } = useApp();
   const log = useLog();
-  if (!profile) return null;
+  const toast = useToast();
 
   const todayEntries = data.water.filter((w) => w.eventDate === today).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const todayMl = round0(todayEntries.reduce((a, w) => a + w.amountMl, 0));
-  const pct = (todayMl / profile.waterTargetMl) * 100;
 
   const last7 = useMemo(() => {
     const days = Array.from({ length: 7 }, (_, i) => addDays(today, -6 + i));
     return days.map((d) => {
       const ml = data.water.filter((w) => w.eventDate === d).reduce((a, w) => a + w.amountMl, 0);
-      return { label: fmtDate(d, { weekday: 'short' }).slice(0, 2), value: ml ? round0(ml / 1000 * 10) / 10 : null };
+      return { label: fmtDate(d, { weekday: 'short' }).slice(0, 2), value: ml ? round1(ml / 1000) : null };
     });
   }, [data.water, today]);
 
+  if (!profile) return null;
+
+  const pct = (todayMl / profile.waterTargetMl) * 100;
+  const serving = settings?.waterServingMl ?? 250;
+  const quick = [...new Set([serving, 500, 750, 1000])];
+
+  const add = async (ml: number) => {
+    await save('water', newRecord({ eventDate: today, source: 'manual', amountMl: ml }) as WaterEntry);
+    toast(`+${ml} ml`);
+  };
+
   return (
     <div>
-      <AppHeader title="Hydration" right={<button className="btn-primary px-3 py-1.5 text-sm" onClick={() => log('water')}>+ Add</button>} />
+      <AppHeader title="Hydration" right={<button className="btn-primary px-3 py-1.5 text-sm" onClick={() => log('water')}>Custom</button>} />
 
       <Card className="mb-3">
         <div className="flex items-center gap-4">
@@ -38,8 +50,8 @@ export function Hydration() {
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2 mt-3">
-          {[250, 500, 750, 1000].map((ml) => (
-            <button key={ml} className="btn-ghost py-2.5 text-sm" onClick={() => log('water')}>+{ml}</button>
+          {quick.map((ml) => (
+            <button key={ml} className="btn-ghost py-2.5 text-sm" onClick={() => add(ml)}>+{ml}</button>
           ))}
         </div>
       </Card>
@@ -49,18 +61,22 @@ export function Hydration() {
 
       <SectionTitle>Today's log</SectionTitle>
       {todayEntries.length === 0 ? (
-        <EmptyState title="No water logged today" icon="💧" action={<button className="btn-primary px-4 py-2 text-sm" onClick={() => log('water')}>Add water</button>} />
+        <EmptyState title="No water logged today" icon="💧" action={<button className="btn-primary px-4 py-2 text-sm" onClick={() => add(serving)}>+{serving} ml</button>} />
       ) : (
         <div className="space-y-2">
           {todayEntries.map((w) => (
             <Card key={w.id} className="flex justify-between items-center py-2.5">
               <span className="text-sm font-semibold">💧 {w.amountMl} ml</span>
-              <span className="text-xs text-muted">{fmtDateTimeIST(w.createdAt).split(',')[1] ?? ''}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted">{fmtDateTimeIST(w.createdAt).split(',')[1] ?? ''}</span>
+                <button className="text-muted text-xs" onClick={() => remove('water', w.id)} aria-label="Remove water entry">Undo</button>
+              </div>
             </Card>
           ))}
         </div>
       )}
-      <InfoNote>Default serving is {profile ? '250' : ''} ml (change in Profile → Settings). Electrolyte intake can be noted in a meal/supplement entry.</InfoNote>
+      <div className="h-3" />
+      <InfoNote>Default serving is {serving} ml — change it in Profile → Water serving size.</InfoNote>
       <div className="h-6" />
     </div>
   );

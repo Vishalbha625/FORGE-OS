@@ -24,17 +24,19 @@ export function StatTile({
   sub,
   tone = 'default',
   icon,
+  onClick,
 }: {
   label: string;
   value: ReactNode;
   sub?: ReactNode;
   tone?: 'default' | 'good' | 'warn' | 'bad' | 'accent' | 'info';
   icon?: ReactNode;
+  onClick?: () => void;
 }) {
   const toneClass =
     tone === 'good' ? 'text-good' : tone === 'warn' ? 'text-warn' : tone === 'bad' ? 'text-bad' : tone === 'accent' ? 'text-accent' : tone === 'info' ? 'text-info' : 'text-text';
   return (
-    <div className="card p-3.5">
+    <div className={`card p-3.5 ${onClick ? 'cursor-pointer active:scale-[0.99] transition' : ''}`} onClick={onClick} role={onClick ? 'button' : undefined}>
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</span>
         {icon && <span className="text-muted">{icon}</span>}

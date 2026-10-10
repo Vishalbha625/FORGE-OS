@@ -2,7 +2,8 @@ import { openDB, type IDBPDatabase } from 'idb';
 import type { StoreMap, StoreName } from './types';
 
 const DB_NAME = 'forge-os';
-const DB_VERSION = 1;
+// v2 adds the `audit` store. Upgrades are additive — existing data is kept.
+const DB_VERSION = 2;
 
 // Stores keyed by `id`; most also index by eventDate for history queries.
 const DATED_STORES: StoreName[] = [
@@ -19,6 +20,8 @@ const DATED_STORES: StoreName[] = [
   'social',
 ];
 const SINGLETON_STORES: StoreName[] = ['profile', 'settings'];
+// Keyed by id, no event-date index.
+const PLAIN_STORES: StoreName[] = ['audit'];
 
 // Use an untyped idb handle; store names are plain strings. Record shapes are
 // enforced by the typed CRUD wrappers below (StoreMap), not the raw DB handle.
@@ -28,7 +31,7 @@ export function getDB(): Promise<IDBPDatabase> {
   if (!dbp) {
     dbp = openDB(DB_NAME, DB_VERSION, {
       upgrade(db) {
-        for (const name of [...DATED_STORES, ...SINGLETON_STORES]) {
+        for (const name of [...DATED_STORES, ...SINGLETON_STORES, ...PLAIN_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: 'id' });
             if (DATED_STORES.includes(name)) {
@@ -119,7 +122,7 @@ export interface BackupFile {
   data: Record<string, unknown[]>;
 }
 
-const ALL_STORES: StoreName[] = [...SINGLETON_STORES, ...DATED_STORES];
+const ALL_STORES: StoreName[] = [...SINGLETON_STORES, ...DATED_STORES, ...PLAIN_STORES];
 
 export async function exportAll(): Promise<BackupFile> {
   const data: Record<string, unknown[]> = {};
@@ -158,6 +161,28 @@ export async function importAll(
 
     if (mode === 'replace' && incoming.length) {
       await clearStore(store);
+    }
+
+    // Profile/settings hold exactly one record. Ids differ between installs,
+    // so merge by recency rather than id to avoid ending up with two profiles.
+    if (SINGLETON_STORES.includes(store) && mode === 'merge') {
+      const newest = [...incoming].sort((a, b) =>
+        ((b as { updatedAt?: string }).updatedAt ?? '').localeCompare((a as { updatedAt?: string }).updatedAt ?? ''),
+      )[0];
+      const local = (await getAll(store))[0] as { updatedAt?: string } | undefined;
+      if (newest && (!local || ((newest as { updatedAt?: string }).updatedAt ?? '') > (local.updatedAt ?? ''))) {
+        await clearStore(store);
+        await putRecord(store, newest);
+        if (local) counts.updated++;
+        else counts.added++;
+      } else if (newest) {
+        counts.skipped++;
+      }
+      result.byStore[store] = counts;
+      result.added += counts.added;
+      result.updated += counts.updated;
+      result.skipped += counts.skipped;
+      continue;
     }
 
     const existing = new Map(

@@ -7,6 +7,10 @@ import { estimateNutrition, cmToFtIn, ageFromDob } from '../../lib/calc';
 import { fmtDate } from '../../lib/dates';
 import { GOAL_LABELS, DEFAULT_SUPPLEMENTS } from '../../lib/constants';
 import type { BackupFile } from '../../db/database';
+import { mergeReminders } from '../../lib/reminders';
+import { diffKeys } from '../../lib/audit';
+import { notify } from '../../components/ReminderRunner';
+import { fmtDateTimeIST } from '../../lib/dates';
 import type { Profile as P, GoalKey, Reminder, Supplement } from '../../db/types';
 
 const num = (v: string): number | undefined => (v.trim() === '' ? undefined : isNaN(Number(v)) ? undefined : Number(v));
@@ -126,6 +130,8 @@ export function Profile() {
       <InfoNote tone="warn">No device integration is active yet. These need platform-specific APIs/OAuth (Apple Health & Health Connect require a native app; Garmin/Fitbit/Strava require developer API access & your authorization). Until connected, data is manual and labelled as such — never faked.</InfoNote>
       <div className="h-3" />
 
+      <EditHistory />
+
       {/* Data management */}
       <SectionTitle>Data & backup</SectionTitle>
       <Card className="mb-3">
@@ -141,13 +147,13 @@ export function Profile() {
       {/* Setup / limitations */}
       <SectionTitle>Setup notes & limitations</SectionTitle>
       <Card className="mb-6 text-sm text-muted space-y-2">
-        <p><b className="text-text">Works now, fully offline:</b> onboarding, dashboard, 15-week plan, all logging, history, analytics, rule-based coach, local social feed, export/import, PWA install.</p>
-        <p><b className="text-text">Needs external setup:</b></p>
+        <p><b className="text-text">Works now, fully offline:</b> onboarding, dashboard, 15-week plan, all logging with edit history, analytics, rule-based coach, local social feed, reminders while the app is open, export/import, PWA install.</p>
+        <p><b className="text-text">Works with your own setup:</b> the AI coach — run <code>npm start</code> with an <code>ANTHROPIC_API_KEY</code> in that terminal, then turn on "Use Claude" above. The key stays on the server.</p>
+        <p><b className="text-text">Needs external services:</b></p>
         <ul className="list-disc pl-4 space-y-1">
-          <li><b>Multi-user social</b> (other athletes, follows, cross-device): a backend like Supabase — auth, Postgres, row-level security, storage.</li>
-          <li><b>AI coach via LLM</b> (free-form answers): a server-side API key (never in frontend). The built-in coach is rule-based and needs no key.</li>
-          <li><b>Device sync</b> (steps, sleep, HR, routes): Apple Health / Health Connect / Garmin / Fitbit / Strava APIs + your authorization.</li>
-          <li><b>Push reminders</b>: a service worker is included; scheduled push needs a push service & permission.</li>
+          <li><b>Multi-user social</b> (other athletes, follows, cross-device): a Supabase project. The database schema with privacy rules is in <code>supabase/schema.sql</code>; the app isn't connected to it yet.</li>
+          <li><b>Device sync</b> (steps, sleep, HR, routes): Apple Health / Health Connect / Garmin / Fitbit / Strava APIs and your authorization.</li>
+          <li><b>Background push</b> (reminders when the app is closed): a push service.</li>
         </ul>
       </Card>
 
@@ -157,34 +163,140 @@ export function Profile() {
   );
 }
 
+function EditHistory() {
+  const { audit } = useApp();
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const shown = open ? audit.slice(0, 100) : audit.slice(0, 5);
+  return (
+    <>
+      <SectionTitle action={audit.length > 5 ? <button className="text-xs text-accent font-semibold" onClick={() => setOpen((o) => !o)}>{open ? 'Show less' : `Show all (${audit.length})`}</button> : undefined}>Edit history</SectionTitle>
+      <Card className="mb-3">
+        {audit.length === 0 ? (
+          <div className="text-sm text-muted">No edits or deletions yet. When you change or delete a logged record, the before/after is kept here.</div>
+        ) : (
+          <div className="divide-y divide-line">
+            {shown.map((a) => {
+              const changed = a.action === 'update' ? diffKeys(a.before, a.after) : [];
+              return (
+                <button key={a.id} className="w-full text-left py-2 first:pt-0 last:pb-0" onClick={() => setExpanded((e) => (e === a.id ? null : a.id))}>
+                  <div className="flex justify-between gap-2 text-sm">
+                    <span className={a.action === 'delete' ? 'text-bad' : ''}>{a.summary}</span>
+                    <span className="text-[11px] text-muted shrink-0">{fmtDateTimeIST(a.at)}</span>
+                  </div>
+                  {changed.length > 0 && <div className="text-[11px] text-muted">changed: {changed.join(', ')}</div>}
+                  {expanded === a.id && (
+                    <pre className="text-[10px] text-muted bg-surface-2 rounded-lg p-2 mt-1 overflow-x-auto whitespace-pre-wrap break-all">
+                      {a.action === 'update'
+                        ? changed.map((k) => `${k}: ${JSON.stringify((a.before as Record<string, unknown>)?.[k])} → ${JSON.stringify((a.after as Record<string, unknown>)?.[k])}`).join('\n')
+                        : JSON.stringify(a.before, null, 1)}
+                    </pre>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
+
+function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button onClick={onClick} role="switch" aria-checked={on} aria-label={label} className={`w-11 h-6 shrink-0 rounded-full transition relative ${on ? 'bg-accent' : 'bg-surface-2 border border-line'}`}>
+      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
+    </button>
+  );
+}
+
+function AiCoachSection() {
+  const { settings, saveSettings } = useApp();
+  const [status, setStatus] = useState<string | null>(null);
+  if (!settings) return null;
+  const on = !!settings.aiCoachEnabled;
+  const check = async () => {
+    setStatus('Checking…');
+    try {
+      const res = await fetch('/api/health');
+      const body = await res.json();
+      setStatus(body.keyPresent ? `Server running · ${body.model} · credentials found` : `Server running · ${body.model} · no API key in its environment`);
+    } catch {
+      setStatus('No coach server reachable. Start it with `npm start` (or `npm run server` alongside `npm run dev`).');
+    }
+  };
+  return (
+    <>
+      <SectionTitle>AI coach</SectionTitle>
+      <Card className="mb-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Use Claude for coach answers</div>
+            <div className="text-xs text-muted">Off: the rule-based coach answers on this device. On: your question and a 4-week summary of your logs (no photos) go to your own Forge OS server, which calls Anthropic's API.</div>
+          </div>
+          <Toggle on={on} label="AI coach" onClick={() => saveSettings({ ...settings, aiCoachEnabled: !on })} />
+        </div>
+        <button className="btn-ghost w-full mt-3 py-2 text-sm" onClick={check}>Check coach server</button>
+        {status && <div className="text-xs text-muted mt-2">{status}</div>}
+      </Card>
+    </>
+  );
+}
+
 function SettingsSection() {
   const { settings, saveSettings } = useApp();
+  const toast = useToast();
+  const [perm, setPerm] = useState<string>(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   if (!settings) return null;
+  const reminders = mergeReminders(settings.reminders);
+  const writeReminders = (next: Reminder[]) => saveSettings({ ...settings, reminders: next });
   const toggleReminder = async (key: string) => {
-    const reminders: Reminder[] = settings.reminders.map((r) => r.key === key ? { ...r, enabled: !r.enabled } : r);
-    await saveSettings({ ...settings, reminders });
+    const turningOn = !reminders.find((r) => r.key === key)?.enabled;
+    if (turningOn && perm === 'default' && typeof Notification !== 'undefined') {
+      setPerm(await Notification.requestPermission());
+    }
+    await writeReminders(reminders.map((r) => (r.key === key ? { ...r, enabled: !r.enabled } : r)));
   };
-  const setTime = async (key: string, time: string) => {
-    const reminders = settings.reminders.map((r) => r.key === key ? { ...r, time } : r);
-    await saveSettings({ ...settings, reminders });
+  const setTime = (key: string, time: string) => writeReminders(reminders.map((r) => (r.key === key ? { ...r, time } : r)));
+  const qh = settings.quietHours ?? { start: '', end: '' };
+  const setQuiet = (patch: Partial<{ start: string; end: string }>) => {
+    const next = { ...qh, ...patch };
+    saveSettings({ ...settings, quietHours: next.start && next.end ? next : undefined });
   };
+  const test = async () => {
+    let p = perm;
+    if (p === 'default' && typeof Notification !== 'undefined') {
+      p = await Notification.requestPermission();
+      setPerm(p);
+    }
+    const via = await notify('Forge OS', 'Notifications are working.', toast);
+    if (via === 'toast') toast('Shown in-app — system notifications are blocked or unsupported in this browser.');
+  };
+
   return (
     <>
       <SectionTitle>Reminders</SectionTitle>
       <Card className="mb-3">
-        {settings.reminders.map((r) => (
-          <div key={r.key} className="flex items-center justify-between py-2 border-b border-line last:border-0">
+        {reminders.map((r) => (
+          <div key={r.key} className="flex items-center justify-between gap-2 py-2 border-b border-line last:border-0">
             <span className="text-sm">{r.label}</span>
             <div className="flex items-center gap-2">
-              {r.enabled && <input type="time" value={r.time ?? '08:00'} onChange={(e) => setTime(r.key, e.target.value)} className="bg-surface-2 border border-line rounded-lg px-2 py-1 text-xs" />}
-              <button onClick={() => toggleReminder(r.key)} className={`w-11 h-6 rounded-full transition relative ${r.enabled ? 'bg-accent' : 'bg-surface-2 border border-line'}`}>
-                <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all ${r.enabled ? 'left-[22px]' : 'left-0.5'}`} />
-              </button>
+              {r.enabled && <input type="time" value={r.time ?? '08:00'} onChange={(e) => setTime(r.key, e.target.value)} className="bg-surface-2 border border-line rounded-lg px-2 py-1 text-xs" aria-label={`${r.label} time`} />}
+              <Toggle on={r.enabled} label={r.label} onClick={() => toggleReminder(r.key)} />
             </div>
           </div>
         ))}
-        <InfoNote>Reminders are saved as preferences. Delivering them as background notifications needs notification permission and a push service — enable per-reminder here and connect that service when available.</InfoNote>
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <Field label="Quiet from" optional><input type="time" className="field py-2" value={qh.start} onChange={(e) => setQuiet({ start: e.target.value })} /></Field>
+          <Field label="Quiet until" optional><input type="time" className="field py-2" value={qh.end} onChange={(e) => setQuiet({ end: e.target.value })} /></Field>
+        </div>
+        <div className="flex items-center justify-between text-xs mb-2">
+          <span className="text-muted">Notification permission: <b className="text-text">{perm}</b></span>
+          <button className="text-accent font-semibold" onClick={test}>Send test</button>
+        </div>
+        <InfoNote>Reminders fire while Forge OS is open (in a tab or the installed app). Browsers don't run app code when it's fully closed, so true background delivery would need a push service. "Workout" and "Missing log" reminders only fire on days with an unlogged planned session.</InfoNote>
       </Card>
+      <AiCoachSection />
       <SectionTitle>Water serving size</SectionTitle>
       <Card className="mb-3">
         <Segmented value={String(settings.waterServingMl)} onChange={(v) => saveSettings({ ...settings, waterServingMl: Number(v) })} options={[{ value: '200', label: '200ml' }, { value: '250', label: '250ml' }, { value: '330', label: '330ml' }, { value: '500', label: '500ml' }]} />

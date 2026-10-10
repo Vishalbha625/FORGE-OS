@@ -8,7 +8,7 @@ import { addDays, fmtDate, fmtDateTimeIST } from '../../lib/dates';
 import { fmtHrsMins, mean, round1 } from '../../lib/calc';
 
 export function Sleep() {
-  const { data, today } = useApp();
+  const { data, today, remove } = useApp();
   const log = useLog();
   const sleeps = [...data.sleep].sort((a, b) => b.eventDate.localeCompare(a.eventDate));
 
@@ -56,6 +56,10 @@ export function Sleep() {
                   {s.hrv ? <div>HRV {s.hrv}</div> : null}
                   <span className="pill bg-surface-2 text-muted mt-1">{s.source}</span>
                 </div>
+              </div>
+              <div className="flex gap-3 mt-2 pt-2 border-t border-line">
+                <button className="text-accent text-xs font-semibold" onClick={() => log('sleep', { existing: s })}>Edit</button>
+                <button className="text-muted text-xs" onClick={() => { if (confirm('Delete this sleep record?')) remove('sleep', s.id); }}>Delete</button>
               </div>
             </Card>
           ))}

@@ -17,13 +17,29 @@ in one or two taps.
 
 ```bash
 npm install
-npm run dev       # dev server at http://localhost:5173
-# or
-npm run build     # type-check + production build into dist/
-npm run preview   # serve the production build at http://localhost:4173
+npm start         # build + run everything on http://localhost:8787 (app + AI coach API)
+# or, while developing:
+npm run dev       # hot-reload UI at http://localhost:5173
+npm run server    # (second terminal) coach API on :8787 — the dev UI proxies /api to it
+npm test          # unit tests (39) — calculations, plan, coach honesty, dedupe, audit, reminders, backup import
 ```
 
 Requirements: Node 18+ (built & tested on Node 22).
+
+### Turn on the AI coach (optional)
+
+The coach works offline with built-in rules. To get free-form answers from Claude:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...   # stays on the server, never sent to the browser
+npm start
+```
+
+Then in the app: **Coach → Use AI** (or Profile → AI coach). Each question sends a summarized
+4-week snapshot of your logs (no photos) to your local server, which calls `claude-opus-5-5`
+with server-side refusal fallback enabled. Override with `COACH_MODEL` / `COACH_EFFORT`
+(default `medium`). If the server or key is missing, answers fall back to the rule-based coach
+and say so.
 
 ### Install on your phone (PWA)
 

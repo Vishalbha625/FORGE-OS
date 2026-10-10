@@ -10,7 +10,6 @@ import { mean, round0 } from '../../lib/calc';
 export function Steps() {
   const { data, today, profile } = useApp();
   const log = useLog();
-  if (!profile) return null;
 
   const recs = [...data.steps].sort((a, b) => b.eventDate.localeCompare(a.eventDate));
   const todayRec = data.steps.find((s) => s.eventDate === today);
@@ -27,6 +26,8 @@ export function Steps() {
     const v = last7.map((d) => d.value).filter((x): x is number => x !== null);
     return v.length ? round0(mean(v) ?? 0) : undefined;
   }, [last7]);
+
+  if (!profile) return null;
 
   const pct = todayRec ? (todayRec.steps / profile.stepGoal) * 100 : 0;
 
