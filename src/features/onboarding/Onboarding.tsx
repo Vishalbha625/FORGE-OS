@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ChevronsDown, Loader2 } from 'lucide-react';
 import { Logo } from '../../components/Layout';
 import { ThemeSwitcher } from '../../store/theme';
 import { useApp, newRecord } from '../../store/AppContext';
+import { useAuth } from '../../store/AuthContext';
+import { useToast } from '../../store/toast';
+import { signInWithGoogle } from '../../lib/authService';
 import { buildDefaultProfileDraft } from '../../lib/plan';
 import { DEFAULT_SUPPLEMENTS, GOAL_LABELS } from '../../lib/constants';
 import { AnimatedBadge, Bar, Chip, Field, InfoNote } from '../../components/ui';
@@ -10,7 +14,8 @@ import { cmToFtIn, ftInToCm, ageFromDob, fmtPace, parseTimeToSec } from '../../l
 import { fmtDate } from '../../lib/dates';
 import type { Profile, GoalKey, Supplement, Settings, Integration } from '../../db/types';
 
-const STEPS = ['Welcome', 'Basics', 'Goals', 'Training', 'Nutrition', 'Lifestyle', 'Devices', 'Confirm'];
+const STEPS = ['Welcome', 'Basics', 'Goals', 'Training', 'Nutrition', 'Lifestyle', 'Devices', 'Confirm', 'Community'];
+const COMMUNITY_STEP = 8;
 
 const INTEGRATIONS: Integration[] = [
   { key: 'apple', label: 'Apple Health', provides: 'Steps, workouts, sleep, heart rate', connected: false, implemented: false },
@@ -24,8 +29,9 @@ const INTEGRATIONS: Integration[] = [
 const num = (v: string): number | undefined => (v.trim() === '' ? undefined : isNaN(Number(v)) ? undefined : Number(v));
 
 export function Onboarding() {
-  const { saveProfile, saveSettings, regeneratePlan } = useApp();
-  const [step, setStep] = useState(0);
+  const { profile: savedProfile, settings: savedSettings, saveProfile, saveSettings, regeneratePlan } = useApp();
+  // A profile that is saved but not yet onboarded stopped at the optional last step: resume there.
+  const [step, setStep] = useState(() => (savedProfile && !savedProfile.onboarded ? COMMUNITY_STEP : 0));
   const draft = useMemo(() => buildDefaultProfileDraft(), []);
   const [p, setP] = useState<Partial<Profile>>(draft);
   const [ftIn, setFtIn] = useState({ ft: 5, in: 11 });
@@ -101,9 +107,11 @@ export function Onboarding() {
       typicalWaterMl: p.typicalWaterMl,
       stressLevel: p.stressLevel,
       recoveryDays: p.recoveryDays,
-      onboarded: true,
+      // Set by the optional community step that follows, so the app opens after it.
+      onboarded: false,
       historicalSource: p.historicalSource,
     }) as Profile;
+    if (savedProfile) Object.assign(profile, { id: savedProfile.id, createdAt: savedProfile.createdAt });
 
     await saveProfile(profile);
 
@@ -121,9 +129,12 @@ export function Onboarding() {
       ],
       integrations: INTEGRATIONS,
     }) as Settings;
+    if (savedSettings) Object.assign(settings, { id: savedSettings.id, createdAt: savedSettings.createdAt });
     await saveSettings(settings);
 
     await regeneratePlan(profile.trainingStartDate, profile.raceDate);
+    setSaving(false);
+    setStep(COMMUNITY_STEP);
   };
 
   return (
@@ -272,6 +283,7 @@ export function Onboarding() {
           </StepWrap>
         )}
         {step === 7 && <Confirm p={p} supps={supps} best5k={best5k} best10k={best10k} saving={saving} />}
+        {step === COMMUNITY_STEP && <JoinCommunity />}
       </div>
 
       {step > 0 && step < 7 && (
@@ -287,6 +299,55 @@ export function Onboarding() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Optional last step. Every choice opens the app; none is required. */
+function JoinCommunity() {
+  const { profile, saveProfile } = useApp();
+  const { isSupabaseAvailable } = useAuth();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const finishOnboarding = async () => {
+    if (profile) await saveProfile({ ...profile, onboarded: true });
+  };
+  const withEmail = async () => {
+    setBusy(true);
+    navigate('/signup'); // URL first, so the app opens straight on the sign-up page
+    await finishOnboarding();
+  };
+  const withGoogle = async () => {
+    setBusy(true);
+    await finishOnboarding();
+    const res = await signInWithGoogle(); // leaves the app on success
+    if (!res.success) toast(res.error ?? 'Could not start Google sign-up.');
+  };
+  const skip = async () => {
+    setBusy(true);
+    navigate('/');
+    await finishOnboarding();
+  };
+
+  return (
+    <StepWrap title="Join the community" desc="Optional. You can do this any time from Profile.">
+      <p className="text-sm text-muted">
+        Create an account to share your training, follow other athletes, and give kudos. <span className="highlight">Your health data stays on your device.</span> Only your posts are shared.
+      </p>
+      {isSupabaseAvailable ? (
+        <div className="mt-6 flex flex-col gap-3">
+          <button className="btn-solid w-full" onClick={withEmail} disabled={busy}>Sign up with email</button>
+          <button className="btn-outline w-full" onClick={withGoogle} disabled={busy}>Sign up with Google</button>
+          <button className="btn-ghost w-full" onClick={skip} disabled={busy}>Skip for now</button>
+        </div>
+      ) : (
+        <div className="mt-6 space-y-3">
+          <InfoNote>Community sign-up isn't open on this app yet. Everything else is ready.</InfoNote>
+          <button className="btn-solid w-full" onClick={skip} disabled={busy}>Open my dashboard <ArrowUpRight className="-ml-1 h-4 w-4" aria-hidden /></button>
+        </div>
+      )}
+    </StepWrap>
   );
 }
 

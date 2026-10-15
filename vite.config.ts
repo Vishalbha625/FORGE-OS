@@ -37,8 +37,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Keep the heavy chart library in its own cacheable chunk.
-        manualChunks: { charts: ['recharts'], vendor: ['react', 'react-dom', 'react-router-dom', 'idb'] },
+        // Heavy libraries get their own chunks, so app updates don't re-download them.
+        manualChunks: { charts: ['recharts'], vendor: ['react', 'react-dom', 'react-router-dom', 'idb'], supabase: ['@supabase/supabase-js'] },
       },
     },
   },

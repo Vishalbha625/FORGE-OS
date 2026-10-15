@@ -1,8 +1,11 @@
 import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { User, RefreshCw, Download, Upload } from 'lucide-react';
 import { useConfirm } from '../../store/confirm';
 import { useApp } from '../../store/AppContext';
 import { useToast } from '../../store/toast';
+import { useAuth } from '../../store/AuthContext';
+import { signOut } from '../../lib/authService';
 import { AppHeader } from '../../components/Layout';
 import { Card, SectionTitle, Field, Sheet, Chip, InfoNote, Segmented, Highlight } from '../../components/ui';
 import { estimateNutrition, cmToFtIn, ageFromDob } from '../../lib/calc';
@@ -125,6 +128,8 @@ export function Profile() {
           ))}
         </div>
       </Card>
+
+      <CommunityAccountSection />
 
       <SectionTitle>Race and plan</SectionTitle>
       <Card>
@@ -285,6 +290,44 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
     <button onClick={onClick} role="switch" aria-checked={on} aria-label={label} className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${on ? 'border-transparent bg-foreground' : 'border-border bg-secondary'}`}>
       <span className={`absolute top-[3px] h-4 w-4 rounded-full transition-all motion-reduce:transition-none ${on ? 'left-[22px] bg-background' : 'left-[3px] bg-foreground/70'}`} />
     </button>
+  );
+}
+
+function CommunityAccountSection() {
+  const { isSupabaseAvailable, isAuthenticated, user, loading } = useAuth();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+
+  const doSignOut = async () => {
+    setBusy(true);
+    // Ends the community session only. IndexedDB is NEVER cleared on sign out:
+    // the athlete's health data stays on this device (R1).
+    const res = await signOut();
+    setBusy(false);
+    toast(res.success ? 'Signed out. Your health data is still on this device.' : res.error ?? 'Could not sign out.');
+  };
+
+  return (
+    <>
+      <SectionTitle>Community account</SectionTitle>
+      <Card>
+        {!isSupabaseAvailable ? (
+          <p className="text-sm text-muted">Community sign-in isn't set up on this app yet.</p>
+        ) : loading ? (
+          <p className="text-sm text-muted motion-safe:animate-pulse" role="status">Checking sign-in</p>
+        ) : isAuthenticated ? (
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium">Signed in as {user?.email ?? 'your account'}</div>
+              <div className="text-xs text-muted">Signing out keeps all your health data on this device.</div>
+            </div>
+            <button className="btn-ghost shrink-0" onClick={doSignOut} disabled={busy}>{busy ? 'Signing out…' : 'Sign out'}</button>
+          </div>
+        ) : (
+          <Link to="/login" state={{ from: '/community' }} className="link">Sign in to join the community</Link>
+        )}
+      </Card>
+    </>
   );
 }
 

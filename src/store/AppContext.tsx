@@ -35,6 +35,7 @@ import { generatePlan } from '../lib/plan';
 import { todayISO, DEFAULT_TZ } from '../lib/dates';
 import { auditSummary, stripForAudit } from '../lib/audit';
 import type { Snapshot } from '../lib/coach';
+import { AUTH_LINKED_EVENT, type AuthLinkedDetail } from '../lib/authService';
 
 export interface DataArrays {
   plannedWorkouts: PlannedWorkout[];
@@ -136,6 +137,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setProfile(p);
     setToday(todayISO(p.timezone ?? DEFAULT_TZ));
   };
+
+  // A community account was created or signed in on this device: remember its
+  // id on the local profile. Reads the stored profile so it is never stale.
+  useEffect(() => {
+    const onLinked = async (e: Event) => {
+      const supabaseUserId = (e as CustomEvent<AuthLinkedDetail>).detail?.supabaseUserId;
+      if (!supabaseUserId) return;
+      const current = (await getAll('profile'))[0];
+      if (!current || current.supabaseUserId === supabaseUserId) return;
+      await saveProfile({ ...current, supabaseUserId });
+    };
+    window.addEventListener(AUTH_LINKED_EVENT, onLinked);
+    return () => window.removeEventListener(AUTH_LINKED_EVENT, onLinked);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const saveSettings = async (s: Settings) => {
     s.updatedAt = nowISO();

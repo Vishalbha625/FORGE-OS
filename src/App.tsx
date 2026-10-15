@@ -6,6 +6,8 @@ import { LogProvider } from './features/logging/QuickLog';
 import { Layout, Logo } from './components/Layout';
 import { ThemeProvider } from './store/theme';
 import { ConfirmProvider } from './store/confirm';
+import { AuthProvider } from './store/AuthContext';
+import { AuthGuard } from './features/auth/AuthGuard';
 import { Onboarding } from './features/onboarding/Onboarding';
 import { Dashboard } from './features/dashboard/Dashboard';
 
@@ -24,6 +26,11 @@ const Steps = page(() => import('./features/health/Steps'), 'Steps');
 const Body = page(() => import('./features/health/Body'), 'Body');
 const Recovery = page(() => import('./features/health/Recovery'), 'Recovery');
 const Hydration = page(() => import('./features/health/Hydration'), 'Hydration');
+const LoginPage = page(() => import('./features/auth/LoginPage'), 'LoginPage');
+const SignUpPage = page(() => import('./features/auth/SignUpPage'), 'SignUpPage');
+const ForgotPasswordPage = page(() => import('./features/auth/ForgotPasswordPage'), 'ForgotPasswordPage');
+const AuthCallbackPage = page(() => import('./features/auth/AuthCallbackPage'), 'AuthCallbackPage');
+const ResetPasswordPage = page(() => import('./features/auth/ResetPasswordPage'), 'ResetPasswordPage');
 
 function PageLoading() {
   return <div className="py-16 text-center text-muted text-sm animate-pulse">Loading…</div>;
@@ -44,6 +51,23 @@ function Gate() {
     return <Onboarding />;
   }
 
+  // Sign-in pages are full screen. Only community routes require an account:
+  // every health feature works without signing in.
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/auth/reset" element={<ResetPasswordPage />} />
+        <Route path="*" element={<MainApp />} />
+      </Routes>
+    </Suspense>
+  );
+}
+
+function MainApp() {
   return (
     <LogProvider>
       <Layout>
@@ -52,7 +76,7 @@ function Gate() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/training" element={<Training />} />
             <Route path="/nutrition" element={<Nutrition />} />
-            <Route path="/community" element={<Community />} />
+            <Route path="/community/*" element={<AuthGuard><Community /></AuthGuard>} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/coach" element={<Coach />} />
             <Route path="/analytics" element={<Analytics />} />
@@ -71,14 +95,16 @@ function Gate() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppProvider>
-        <ToastProvider>
-          <ConfirmProvider>
-            <Gate />
-          </ConfirmProvider>
-        </ToastProvider>
-      </AppProvider>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <AppProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <Gate />
+            </ConfirmProvider>
+          </ToastProvider>
+        </AppProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }

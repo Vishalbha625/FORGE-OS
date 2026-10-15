@@ -116,6 +116,8 @@ export interface Profile extends BaseRecord {
   onboarded: boolean;
   // Provenance of prepopulated draft values
   historicalSource?: string;
+  /** Community account linked on this device (Supabase auth user id). Optional: added in v3, no migration needed. */
+  supabaseUserId?: string;
 }
 
 // ── Training ──────────────────────────────────────────────────────────────────

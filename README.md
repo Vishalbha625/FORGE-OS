@@ -82,6 +82,22 @@ To set it up by hand instead:
 Render's free tier sleeps when idle, so the first question after a while can take ~30 s; the app
 falls back to the rule-based coach if the request fails.
 
+### Community accounts (Supabase Auth)
+
+Health features never need an account. Only `/community` asks you to sign in. Signing out ends the
+community session and never deletes anything on the device.
+
+1. Create a Supabase project and run `supabase/schema.sql` and `supabase/storage.sql` in its SQL editor.
+2. Vercel environment: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Supabase → Project settings →
+   API; the anon key is public by design, RLS enforces access). Redeploy: Vite bakes these in at build time.
+3. Supabase → Authentication → URL configuration: Site URL `https://forge-os-black.vercel.app`, and add
+   `https://forge-os-black.vercel.app/auth/callback` and `https://forge-os-black.vercel.app/auth/reset`
+   to the redirect URLs.
+4. Google sign-in (optional): Authentication → Providers → Google, with a Google Cloud OAuth client whose
+   authorised redirect URI is `https://<project>.supabase.co/auth/v1/callback`.
+
+Sign-in uses PKCE, so confirmation and reset links must be opened in the same browser that asked for them.
+
 ### Install on your phone (PWA)
 
 1. Deploy `dist/` to any static host (Netlify, Vercel, GitHub Pages, Cloudflare Pages) — or
