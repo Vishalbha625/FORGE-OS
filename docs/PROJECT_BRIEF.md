@@ -219,7 +219,7 @@ Status key: **Done** = built and tested. **Partial** = works but with a stated g
 
 ## 4. Database schema / data model
 
-### 4A. On-device database: IndexedDB `forge-os`, version 2 (implemented)
+### 4A. On-device database: IndexedDB `forge-os`, version 3 (implemented)
 
 Key-value object stores keyed by `id` (string UUID). Every store holding dated records has an index on `eventDate`. There are no foreign keys: links are optional ids. Types live in `src/db/types.ts`.
 
@@ -241,6 +241,8 @@ Key-value object stores keyed by `id` (string UUID). Every store holding dated r
 | `recovery` | eventDate, fatigue?, soreness?, motivation?, stress? (1 to 5), pain? | One per day |
 | `social` | eventDate, author, title, activityType, caption?, distanceKm?, durationSec?, paceSecPerKm?, elevationM?, stationDetail?, photo?, visibility (private/followers/public), kudos, kudosedByMe, comments[{id,author,text,createdAt}], pr?, routeText? | Local single-user |
 | `audit` (no date index) | id, at (ISO), store, recordId, action (update/delete), eventDate?, summary, before?, after? (photos stripped) | Written on every edit/delete of training, food, sleep, steps, body, recovery, plan |
+| `socialCache` (v3) | id, createdAt (indexed) | Cached community feed posts. Not health data; not in backups; cleared by Delete all data |
+| `offlineQueue` (v3) | id, operation, payload, createdAt (indexed), retryCount, maxRetries (default 5), lastError? | Community writes waiting to be replayed in order. Entries with retryCount ≥ maxRetries are dead letters. Not in backups; cleared by Delete all data |
 
 ### 4B. Community backend: Supabase Postgres (designed and tested, **not wired to the app**)
 
@@ -415,7 +417,7 @@ FORGE-OS/
 | `COACH_ACCESS_TOKEN` | Strongly recommended on a public server | Shared secret the app must send as `Authorization: Bearer …` to `/api/coach`. CORS alone doesn't stop scripts or curl from spending your API credit |
 | `VITE_COACH_URL` | Build-time, frontend | Coach server base URL baked into the app (e.g. `https://forge-coach.onrender.com`). Can be overridden per device in Profile → AI coach. Not secret |
 | `PGTEST_PORT` | No | Port for the throwaway Postgres in the RLS tests. Default `54329` |
-| *(future)* `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | When wiring Supabase | Public project URL and anon key (safe in frontend; privacy is enforced by RLS) |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` | For the community (read by `src/lib/supabase.ts`; the app runs without them) | Public project URL and anon key (safe in frontend; privacy is enforced by RLS) |
 
 **Configuration files:**
 - `vite.config.ts`: PWA manifest, service worker (Workbox; `/api` excluded), `/api` proxy to 8787 in dev and preview, chunk splitting.

@@ -2,8 +2,9 @@ import { openDB, type IDBPDatabase } from 'idb';
 import type { StoreMap, StoreName } from './types';
 
 const DB_NAME = 'forge-os';
-// v2 adds the `audit` store. Upgrades are additive: existing data is kept.
-const DB_VERSION = 2;
+// v2 adds the `audit` store; v3 adds `socialCache` and `offlineQueue` for the
+// community. Upgrades are additive: existing stores and data are kept.
+const DB_VERSION = 3;
 
 // Stores keyed by `id`; most also index by eventDate for history queries.
 const DATED_STORES: StoreName[] = [
@@ -22,6 +23,8 @@ const DATED_STORES: StoreName[] = [
 const SINGLETON_STORES: StoreName[] = ['profile', 'settings'];
 // Keyed by id, no event-date index.
 const PLAIN_STORES: StoreName[] = ['audit'];
+// Community cache and outbox (v3). Not health data, and not part of backups.
+const COMMUNITY_STORES = ['socialCache', 'offlineQueue'] as const;
 
 // Use an untyped idb handle; store names are plain strings. Record shapes are
 // enforced by the typed CRUD wrappers below (StoreMap), not the raw DB handle.
@@ -30,12 +33,19 @@ let dbp: Promise<IDBPDatabase> | null = null;
 export function getDB(): Promise<IDBPDatabase> {
   if (!dbp) {
     dbp = openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, oldVersion) {
         for (const name of [...DATED_STORES, ...SINGLETON_STORES, ...PLAIN_STORES]) {
           if (!db.objectStoreNames.contains(name)) {
             const store = db.createObjectStore(name, { keyPath: 'id' });
             if (DATED_STORES.includes(name)) {
               store.createIndex('eventDate', 'eventDate');
+            }
+          }
+        }
+        if (oldVersion < 3) {
+          for (const name of COMMUNITY_STORES) {
+            if (!db.objectStoreNames.contains(name)) {
+              db.createObjectStore(name, { keyPath: 'id' }).createIndex('createdAt', 'createdAt');
             }
           }
         }
@@ -221,4 +231,7 @@ export async function wipeAll(): Promise<void> {
   for (const store of ALL_STORES) {
     await clearStore(store);
   }
+  // Also drop cached posts and queued community writes, so nothing is sent after a wipe.
+  const db = await getDB();
+  for (const store of COMMUNITY_STORES) await db.clear(store);
 }
