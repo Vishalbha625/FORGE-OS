@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Flag, Heart, MessageCircle, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { deletePost, toggleKudos, type CommunityPost } from '../../lib/communityService';
 import { deduplicatedMutation, isMutationPending } from '../../lib/deduplicatedMutation';
 import { queueCommunityWrite } from '../../lib/offlineQueueProcessor';
@@ -9,6 +9,7 @@ import { getDB } from '../../db/database';
 import { useToast } from '../../store/toast';
 import { useConfirm } from '../../store/confirm';
 import { Avatar, PostPhoto, VisibilityIcon, isOffline, postStats } from './shared';
+import { BlockReportSheet } from './BlockReportSheet';
 
 interface PostCardProps {
   post: CommunityPost;
@@ -29,6 +30,7 @@ export function PostCard({ post, currentUserId, onChange, onRemove, onEdit, expa
   const kudosKey = `kudos-${post.id}`;
   const [kudos, setKudos] = useState({ on: post.user_has_kudosed, count: post.kudos_count });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const isMine = post.author_id === currentUserId;
   const stats = postStats(post);
@@ -103,7 +105,9 @@ export function PostCard({ post, currentUserId, onChange, onRemove, onEdit, expa
   return (
     <article className="card relative p-4" aria-labelledby={`post-${post.id}-title`}>
       <header className="flex items-start gap-3">
-        <Avatar name={post.author.display_name} />
+        <Link to={`/community/profile/${post.author_id}`} tabIndex={-1} aria-hidden className="shrink-0">
+          <Avatar name={post.author.display_name} path={post.author.avatar_path} />
+        </Link>
         <div className="min-w-0 flex-1">
           <Link to={`/community/profile/${post.author_id}`} className="block truncate text-sm font-medium hover:text-brand">
             {post.author.display_name}
@@ -116,19 +120,24 @@ export function PostCard({ post, currentUserId, onChange, onRemove, onEdit, expa
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {post.is_pr && <span className="pill border-good/40 text-good">PR</span>}
-          {isMine && (onEdit || onRemove) && (
+          {(isMine ? Boolean(onEdit || onRemove) : Boolean(currentUserId)) && (
             <div className="relative" ref={menuRef}>
               <button className="grid h-8 w-8 place-items-center rounded-md text-muted hover:text-foreground" aria-label="Post options" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
                 <MoreHorizontal className="h-4 w-4" aria-hidden />
               </button>
               {menuOpen && (
                 <div role="menu" className="absolute right-0 top-9 z-20 w-36 overflow-hidden rounded-lg border bg-card py-1 text-sm animate-rise" style={{ borderColor: 'var(--card-edge)' }}>
-                  {onEdit && (
+                  {!isMine && (
+                    <button role="menuitem" className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-secondary" onClick={() => { setMenuOpen(false); setReporting(true); }}>
+                      <Flag className="h-3.5 w-3.5" aria-hidden /> Report post
+                    </button>
+                  )}
+                  {isMine && onEdit && (
                     <button role="menuitem" className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-secondary" onClick={() => { setMenuOpen(false); onEdit(post); }}>
                       <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit
                     </button>
                   )}
-                  {onRemove && (
+                  {isMine && onRemove && (
                     <button role="menuitem" className="flex w-full items-center gap-2 px-3 py-2 text-left text-bad hover:bg-secondary" onClick={remove}>
                       <Trash2 className="h-3.5 w-3.5" aria-hidden /> Delete
                     </button>
@@ -175,6 +184,9 @@ export function PostCard({ post, currentUserId, onChange, onRemove, onEdit, expa
           <span className="tabular-nums">{post.comment_count}</span>
         </Link>
       </footer>
+      {!isMine && (
+        <BlockReportSheet mode={reporting ? 'report' : null} onClose={() => setReporting(false)} currentUserId={currentUserId} target={{ userId: post.author_id, name: post.author.display_name, postId: post.id }} />
+      )}
     </article>
   );
 }

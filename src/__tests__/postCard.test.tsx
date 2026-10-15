@@ -37,10 +37,12 @@ describe('PostCard', () => {
     expect(render(post())).not.toContain(' km<');
   });
 
-  it('shows the PR badge, and the post menu only on your own posts', () => {
+  it('shows the PR badge, and a post menu to signed-in viewers (edit on yours, report on others)', () => {
     expect(render(post({ is_pr: true }))).toContain('>PR<');
-    expect(render(post())).not.toContain('Post options');
+    expect(render(post())).toContain('Post options'); // others' posts: report
+    expect(render(post(), '')).not.toContain('Post options'); // nobody signed in: no menu
     const mine = renderToStaticMarkup(<MemoryRouter><PostCard post={post()} currentUserId="u-author" onEdit={() => {}} onRemove={() => {}} /></MemoryRouter>);
     expect(mine).toContain('Post options');
+    expect(render(post())).toContain('href="/community/profile/u-author"');
   });
 });

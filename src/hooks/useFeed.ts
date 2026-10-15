@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../store/AuthContext';
 import { getDB } from '../db/database';
-import { fetchFeed, type CommunityPost } from '../lib/communityService';
+import { fetchFeed, getFollowingIds, type CommunityPost } from '../lib/communityService';
 import { QUEUE_SYNCED_EVENT } from '../lib/offlineQueueProcessor';
 import { getCachedFeed, getCacheMeta, mergeFeedUpdate, removeFromCache, setCachedFeed } from '../lib/feedCache';
 
@@ -48,13 +48,16 @@ export function useFeed(pageSize = 20): FeedState {
   const cursor = useRef<string | null>(null);
   const generation = useRef(0); // bumps on refresh, so late load-more results are dropped
   const fetchingMore = useRef(false);
+  // Who you follow, for followers-only posts. Reloaded on mount and manual
+  // refresh only, not on every 60 s poll.
+  const followees = useRef<string[] | undefined>(undefined);
 
   const show = (next: CommunityPost[]) => {
     postsRef.current = next;
     setPosts(next);
   };
 
-  const refresh = useCallback(async () => {
+  const load = useCallback(async (reloadFollowing: boolean) => {
     if (!userId) return;
     if (!isOnline()) {
       setIsOffline(true);
@@ -64,7 +67,11 @@ export function useFeed(pageSize = 20): FeedState {
     }
     const gen = ++generation.current;
     setRefreshing(true);
-    const res = await fetchFeed(userId, undefined, pageSize);
+    if (reloadFollowing || !followees.current) {
+      const f = await getFollowingIds(userId);
+      if (f.data) followees.current = f.data; // on failure keep the last list we had
+    }
+    const res = await fetchFeed(userId, undefined, pageSize, followees.current ?? []);
     if (!mounted.current || gen !== generation.current) return;
     setRefreshing(false);
     setLoading(false);
@@ -85,13 +92,17 @@ export function useFeed(pageSize = 20): FeedState {
     }
   }, [userId, pageSize]);
 
+  /** Manual refresh: also re-checks who you follow. */
+  const refresh = useCallback(() => load(true), [load]);
+  const poll = useCallback(() => load(false), [load]);
+
   const loadMore = useCallback(async () => {
     if (!userId || !cursor.current || fetchingMore.current || !isOnline()) return;
     fetchingMore.current = true;
     setLoadingMore(true);
     const gen = generation.current;
     try {
-      const res = await fetchFeed(userId, cursor.current, pageSize);
+      const res = await fetchFeed(userId, cursor.current, pageSize, followees.current ?? []);
       if (!mounted.current || gen !== generation.current || res.error || !res.data) return;
       const page = res.data;
       const seen = new Set(postsRef.current.map((p) => p.id));
@@ -123,6 +134,7 @@ export function useFeed(pageSize = 20): FeedState {
     // A different account starts from a clean slate, never the last one's posts.
     show([]);
     cursor.current = null;
+    followees.current = undefined;
     setHasMore(false);
     setError(null);
     if (!userId) {
@@ -158,17 +170,17 @@ export function useFeed(pageSize = 20): FeedState {
   useEffect(() => {
     if (!userId) return;
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && document.hasFocus() && isOnline()) void refresh();
+      if (document.visibilityState === 'visible' && document.hasFocus() && isOnline()) void poll();
     }, POLL_MS);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') void refresh();
+      if (document.visibilityState === 'visible') void poll();
     };
     const onOnline = () => {
       setIsOffline(false);
-      void refresh();
+      void poll();
     };
     const onOffline = () => setIsOffline(true);
-    const onSynced = () => void refresh();
+    const onSynced = () => void poll();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
@@ -180,7 +192,7 @@ export function useFeed(pageSize = 20): FeedState {
       window.removeEventListener('offline', onOffline);
       window.removeEventListener(QUEUE_SYNCED_EVENT, onSynced);
     };
-  }, [userId, refresh]);
+  }, [userId, poll]);
 
   useEffect(() => () => {
     mounted.current = false;

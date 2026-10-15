@@ -20,8 +20,9 @@ const Training = page(() => import('./features/training/Training'), 'Training');
 const Nutrition = page(() => import('./features/nutrition/Nutrition'), 'Nutrition');
 const FeedPage = page(() => import('./features/community/FeedPage'), 'FeedPage');
 const PostDetailPage = page(() => import('./features/community/PostDetailPage'), 'PostDetailPage');
-const CommunitySearch = lazy(() => import('./features/community/shared').then((m) => ({ default: () => <m.ComingSoon title="Search the community" /> })));
-const CommunityProfile = lazy(() => import('./features/community/shared').then((m) => ({ default: () => <m.ComingSoon title="Athlete profile" /> })));
+const SearchUsersPage = page(() => import('./features/community/SearchUsersPage'), 'SearchUsersPage');
+const ProfilePage = page(() => import('./features/community/ProfilePage'), 'ProfilePage');
+const FollowersListPage = page(() => import('./features/community/FollowersListPage'), 'FollowersListPage');
 const Profile = page(() => import('./features/profile/Profile'), 'Profile');
 const Coach = page(() => import('./features/coach/Coach'), 'Coach');
 const Analytics = page(() => import('./features/analytics/Analytics'), 'Analytics');
@@ -82,8 +83,10 @@ function MainApp() {
             <Route path="/nutrition" element={<Nutrition />} />
             <Route path="/community" element={<AuthGuard><FeedPage /></AuthGuard>} />
             <Route path="/community/post/:postId" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
-            <Route path="/community/search" element={<AuthGuard><CommunitySearch /></AuthGuard>} />
-            <Route path="/community/profile/:userId" element={<AuthGuard><CommunityProfile /></AuthGuard>} />
+            <Route path="/community/search" element={<AuthGuard><SearchUsersPage /></AuthGuard>} />
+            <Route path="/community/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} />
+            <Route path="/community/profile/:userId/followers" element={<AuthGuard><FollowersListPage /></AuthGuard>} />
+            <Route path="/community/profile/:userId/following" element={<AuthGuard><FollowersListPage /></AuthGuard>} />
             <Route path="/community/*" element={<Navigate to="/community" replace />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/coach" element={<Coach />} />

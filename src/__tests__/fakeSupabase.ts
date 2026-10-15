@@ -47,6 +47,11 @@ export function fakeSupabase(respond: (q: RecordedQuery) => FakeResponse) {
       queries.push(rec);
       return builder(rec);
     },
+    rpc: (fn: string, args: unknown) => {
+      const rec: RecordedQuery = { table: `rpc:${fn}`, calls: [['rpc', [args]]] };
+      queries.push(rec);
+      return builder(rec);
+    },
     storage: { from: vi.fn(() => bucket) },
   };
   return { client: client as unknown as SupabaseClient, queries, bucket };

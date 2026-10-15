@@ -87,8 +87,8 @@ falls back to the rule-based coach if the request fails.
 Health features never need an account. Only `/community` asks you to sign in. Signing out ends the
 community session and never deletes anything on the device.
 
-1. Create a Supabase project and run `supabase/schema.sql`, `supabase/storage.sql` and `supabase/photos.sql`
-   (in that order) in its SQL editor.
+1. Create a Supabase project and run `supabase/schema.sql`, `supabase/storage.sql`, `supabase/photos.sql` and
+   `supabase/social.sql` (in that order) in its SQL editor.
 2. Vercel environment: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Supabase → Project settings →
    API; the anon key is public by design, RLS enforces access). Redeploy: Vite bakes these in at build time.
 3. Supabase → Authentication → URL configuration: Site URL `https://forge-os-black.vercel.app`, and add

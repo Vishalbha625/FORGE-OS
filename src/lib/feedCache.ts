@@ -62,3 +62,13 @@ export function isCacheStale(meta: FeedCacheMeta | null, staleTimeMs = 5 * 60 * 
   const fetched = Date.parse(meta.lastFetched);
   return Number.isNaN(fetched) || Date.now() - fetched > staleTimeMs;
 }
+
+/** Drop every cached post by one author (after blocking them), so none flash up offline. */
+export async function removeAuthorFromCache(db: IDBPDatabase, authorId: string): Promise<number> {
+  const tx = db.transaction(STORE, 'readwrite');
+  const all = (await tx.store.getAll()) as (CommunityPost | MetaRecord)[];
+  const doomed = all.filter((r): r is CommunityPost => r.id !== META_ID && (r as CommunityPost).author_id === authorId);
+  for (const post of doomed) await tx.store.delete(post.id);
+  await tx.done;
+  return doomed.length;
+}

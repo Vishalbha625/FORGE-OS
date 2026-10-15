@@ -180,5 +180,52 @@ do $$ begin
   assert (select allowed_mime_types from storage.buckets where id = 'post-photos') = array['image/webp', 'image/jpeg'], 'type allow-list missing';
 end $$;
 
+-- ── social.sql ────────────────────────────────────────────────────────────────
+-- State here: bob follows alice (accepted, test 6); alice and carol are blocked
+-- (test 9); dave is a stranger to everyone.
+\set erin '77777777-7777-7777-7777-777777777777'
+insert into auth.users (id, email) values (:'erin', 'e@x');
+insert into public.profiles (id, display_name) values (:'erin', 'Erin');
+insert into public.follows (follower_id, followee_id, status) values (:'erin', :'alice', 'pending');
+insert into storage.objects (bucket_id, name) values
+  ('post-photos', :'alice' || '/avatar.webp'),
+  ('post-photos', :'dave' || '/avatar.webp');
+
+\echo '17. avatars are readable by signed-in users, but not across a block'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'dave', true) \gset
+do $$ begin assert (select count(*) from storage.objects where name like '%/avatar.webp') = 2, 'dave should read both avatars'; end $$;
+commit;
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'carol', true) \gset
+do $$ begin assert (select count(*) from storage.objects where name = '11111111-1111-1111-1111-111111111111/avatar.webp') = 0, 'blocked user read an avatar'; end $$;
+do $$ begin assert (select count(*) from storage.objects where name = '44444444-4444-4444-4444-444444444444/avatar.webp') = 1, 'carol should read dave''s avatar'; end $$;
+commit;
+
+\echo '18. follow counts and lists show accepted follows only, to signed-in users'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'dave', true) \gset
+do $$ begin
+  assert (select followers from public.profile_follow_counts('11111111-1111-1111-1111-111111111111')) = 1, 'alice has one accepted follower (erin is pending)';
+  assert (select following from public.profile_follow_counts('22222222-2222-2222-2222-222222222222')) = 1, 'bob follows one';
+  assert (select array_agg(display_name) from public.profile_follows('11111111-1111-1111-1111-111111111111', 'followers')) = array['Bob'], 'dave should see bob as alice''s follower';
+  assert (select count(*) from public.profile_follows('22222222-2222-2222-2222-222222222222', 'following')) = 1, 'bob follows alice';
+  assert (select count(*) from public.profile_follows('11111111-1111-1111-1111-111111111111', 'sideways')) = 0, 'unknown direction returns nothing';
+end $$;
+-- pending requests stay private: dave still can't read the follow rows themselves
+do $$ begin assert (select count(*) from public.follows) = 0, 'a stranger read follow rows'; end $$;
+commit;
+begin; set local role anon; select set_config('request.jwt.claim.sub', '', true) \gset
+do $$ begin
+  perform public.profile_follow_counts('11111111-1111-1111-1111-111111111111');
+  raise exception 'FAIL: anonymous caller ran profile_follow_counts';
+exception when insufficient_privilege then null; end $$;
+commit;
+
+\echo '19. blocked users see no counts or lists for each other'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'carol', true) \gset
+do $$ begin
+  assert (select count(*) from public.profile_follow_counts('11111111-1111-1111-1111-111111111111')) = 0, 'carol got alice''s counts';
+  assert (select count(*) from public.profile_follows('11111111-1111-1111-1111-111111111111', 'followers')) = 0, 'carol got alice''s followers';
+end $$;
+commit;
+
 \echo ''
 \echo 'ALL RLS TESTS PASSED'

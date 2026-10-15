@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Globe, ImageOff, Lock, Users } from 'lucide-react';
+import { Globe, ImageOff, Lock, Users } from 'lucide-react';
 import type { User } from '@supabase/supabase-js';
-import { getCachedPhotoUrl, type CommunityPost, type Visibility } from '../../lib/communityService';
+import { getCachedAvatarUrl, getCachedPhotoUrl, type CommunityPost, type CommunityProfile, type Visibility } from '../../lib/communityService';
 import { fmtDuration, fmtPace } from '../../lib/calc';
 
 export const ACTIVITY_TYPES = ['Run', 'Strength', 'HYROX', 'Recovery', 'Other'] as const;
@@ -29,12 +30,41 @@ export function myDisplayName(user: User | null): string {
   return name || user?.email?.split('@')[0] || 'You';
 }
 
-export function Avatar({ name, size = 'md' }: { name: string | undefined; size?: 'sm' | 'md' }) {
-  const dims = size === 'sm' ? 'h-8 w-8 text-xs' : 'h-10 w-10 text-sm';
+const AVATAR_SIZE = { sm: 'h-8 w-8 text-xs', md: 'h-10 w-10 text-sm', lg: 'h-20 w-20 text-2xl' } as const;
+
+/** Profile photo when there is one, initials otherwise (and while it loads). */
+export function Avatar({ name, path, size = 'md' }: { name: string | undefined; path?: string; size?: keyof typeof AVATAR_SIZE }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    setUrl(null);
+    if (path) getCachedAvatarUrl(path).then((u) => live && setUrl(u));
+    return () => {
+      live = false;
+    };
+  }, [path]);
+  const dims = AVATAR_SIZE[size];
+  if (url) return <img src={url} alt="" className={`shrink-0 rounded-full border border-border object-cover ${dims}`} onError={() => setUrl(null)} />;
   return (
     <span className={`grid shrink-0 place-items-center rounded-full border border-border bg-secondary font-medium text-foreground/80 ${dims}`} aria-hidden>
       {initials(name)}
     </span>
+  );
+}
+
+/** One athlete in a list: avatar, name and the first line of their bio. */
+export function ProfileRow({ profile, right }: { profile: CommunityProfile; right?: ReactNode }) {
+  return (
+    <li className="flex items-center gap-3 py-2.5">
+      <Link to={`/community/profile/${profile.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+        <Avatar name={profile.display_name} path={profile.avatar_path} />
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium">{profile.display_name}</span>
+          {profile.bio && <span className="block truncate text-xs text-muted">{profile.bio}</span>}
+        </span>
+      </Link>
+      {right}
+    </li>
   );
 }
 
@@ -80,17 +110,4 @@ export function PostPhoto({ path, variant }: { path: string; variant: 'thumb' | 
     );
   }
   return <img src={url} alt="" loading="lazy" decoding="async" onError={() => setUrl(null)} className="aspect-[4/3] w-full rounded-lg border border-border object-cover" />;
-}
-
-/** Placeholder for community screens that arrive in the next phase. */
-export function ComingSoon({ title }: { title: string }) {
-  return (
-    <div className="py-10 text-center">
-      <h1 className="text-xl font-medium tracking-tight">{title}</h1>
-      <p className="mt-1 text-sm text-muted">This part of the community is coming soon.</p>
-      <Link to="/community" className="btn-outline mt-5 inline-flex">
-        <ArrowLeft className="h-4 w-4" aria-hidden /> Back to the feed
-      </Link>
-    </div>
-  );
 }

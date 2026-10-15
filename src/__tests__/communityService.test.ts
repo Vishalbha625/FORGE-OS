@@ -80,16 +80,17 @@ describe('communityService', () => {
       postRow('bbbbbbbb-0000-4000-8000-000000000002', '2026-10-15T08:00:00.200002+00:00'),
       postRow('aaaaaaaa-0000-4000-8000-000000000001', '2026-10-15T08:00:00.100003+00:00'),
     ];
-    const { queries } = use(() => okRes(rows));
+    const { queries: all } = use((q) => (q.table === 'follows' ? okRes([]) : okRes(rows)));
     const page = await fetchFeed(ME, undefined, 2);
+    const queries = all.filter((q) => q.table === 'posts');
     expect(page.data?.data.map((p) => p.id)).toEqual([rows[0].id, rows[1].id]);
     expect(page.data?.hasMore).toBe(true);
     expect(page.data?.nextCursor).toBe(`${rows[1].created_at}|${rows[1].id}`); // microseconds kept
     expect(argsOf(queries[0], 'limit')).toEqual([3]); // pageSize + 1
     expect(argsOf(queries[0], 'or')).toEqual([`visibility.eq.public,author_id.eq.${ME}`]);
 
-    await fetchFeed(ME, page.data!.nextCursor!, 2);
-    const ors = queries[1].calls.filter(([m]) => m === 'or').map(([, a]) => a[0]);
+    await fetchFeed(ME, page.data!.nextCursor!, 2, []);
+    const ors = all.filter((q) => q.table === 'posts')[1].calls.filter(([m]) => m === 'or').map(([, a]) => a[0]);
     expect(ors[1]).toBe(`created_at.lt."${rows[1].created_at}",and(created_at.eq."${rows[1].created_at}",id.lt.${rows[1].id})`);
 
     const post = page.data!.data[0];

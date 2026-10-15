@@ -30,4 +30,5 @@ psql_run "-f '$here/supabase_shim.sql'" >/dev/null
 psql_run "-f '$root/schema.sql'" >/dev/null
 psql_run "-f '$root/storage.sql'" >/dev/null
 psql_run "-f '$root/photos.sql'" >/dev/null
+psql_run "-f '$root/social.sql'" >/dev/null
 psql_run "-f '$here/rls_test.sql'"

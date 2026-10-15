@@ -197,7 +197,9 @@ export function PostDetailPage() {
         <ul className="space-y-3">
           {comments.map((c) => (
             <li key={c.id} className="flex gap-2.5">
-              <Avatar name={c.author.display_name} size="sm" />
+              <Link to={`/community/profile/${c.author_id}`} tabIndex={-1} aria-hidden className="shrink-0">
+                <Avatar name={c.author.display_name} path={c.author.avatar_path} size="sm" />
+              </Link>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 text-xs">
                   <Link to={`/community/profile/${c.author_id}`} className="truncate font-medium hover:text-brand">{c.author.display_name}</Link>

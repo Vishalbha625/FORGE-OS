@@ -162,4 +162,57 @@ describe.skipIf(!API)('communityService against PostgREST + RLS', () => {
     expect((await svc.deletePost(a2.id, ALICE)).error).toBeNull();
     expect((await svc.getPost(a2.id, ALICE)).error).toBe('Post not found.');
   });
+
+  it('followers-only posts reach a follower only after Alice accepts', async () => {
+    await as(ALICE);
+    const fo = must(await svc.createPost(ALICE, { title: 'Followers only tempo', activity_type: 'Run', visibility: 'followers' }));
+    const priv = must(await svc.createPost(ALICE, { title: 'Only me', activity_type: 'Other', visibility: 'private' }));
+    await as(BOB);
+    const ids = async () => must(await svc.fetchFeed(BOB, undefined, 50)).data.map((p) => p.id);
+    expect(await ids()).not.toContain(fo.id);
+    expect(must(await svc.getFollowStatus(BOB, ALICE))).toBe('none');
+    must(await svc.requestFollow(BOB, ALICE));
+    expect(must(await svc.getFollowStatus(BOB, ALICE))).toBe('pending');
+    expect(await ids()).not.toContain(fo.id); // pending grants nothing
+    await as(ALICE);
+    must(await svc.acceptFollow(BOB, ALICE));
+    await as(BOB);
+    expect(must(await svc.getFollowStatus(BOB, ALICE))).toBe('accepted');
+    expect(await ids()).toContain(fo.id);
+    expect(await ids()).not.toContain(priv.id);
+
+    // Profile tab: follower sees public + followers-only; Alice sees everything.
+    const bobView = must(await svc.getProfilePosts(ALICE, BOB, undefined, 50)).data.map((p) => p.title);
+    expect(bobView).toContain('Followers only tempo');
+    expect(bobView).not.toContain('Only me');
+    await as(ALICE);
+    expect(must(await svc.getProfilePosts(ALICE, ALICE, undefined, 50)).data.map((p) => p.title)).toEqual(expect.arrayContaining(['Only me', 'Followers only tempo']));
+  });
+
+  it('counts and follow lists work for anyone signed in, through the database functions', async () => {
+    await as(BOB);
+    expect(must(await svc.getFollowCounts(ALICE))).toEqual({ followers: 1, following: 0 });
+    expect(must(await svc.getFollowerCount(ALICE))).toBe(1);
+    expect(must(await svc.getFollowingCount(BOB))).toBe(1);
+    expect(must(await svc.getFollowList(ALICE, 'followers')).map((p) => p.display_name)).toEqual(['Bob']);
+    expect(must(await svc.getFollowList(BOB, 'following')).map((p) => p.display_name)).toEqual(['Alice']);
+    const bobSees = must(await svc.getPostCount(ALICE));
+    await as(ALICE);
+    const aliceSees = must(await svc.getPostCount(ALICE));
+    expect(aliceSees).toBe(bobSees + 1); // Alice also counts her private post
+  });
+
+  it('search matches part of a name, treats % as text, and hides blocked athletes', async () => {
+    await as(BOB);
+    expect(must(await svc.searchProfiles('lic', BOB)).map((p) => p.display_name)).toEqual(['Alice']);
+    expect(must(await svc.searchProfiles('%', BOB))).toEqual([]);
+    expect(must(await svc.searchProfiles('bob', BOB))).toEqual([]); // never yourself
+    await as(ALICE);
+    must(await svc.blockUser(ALICE, BOB));
+    await as(BOB);
+    expect(must(await svc.searchProfiles('alice', BOB))).toEqual([]);
+    expect((await svc.getProfile(ALICE)).error).toBe('Profile not found.');
+    await as(ALICE);
+    must(await svc.unblockUser(ALICE, BOB));
+  });
 });

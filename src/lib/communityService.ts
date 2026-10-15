@@ -3,7 +3,7 @@ import { getSupabase } from './supabase';
 import { supabaseCircuit, CircuitOpenError } from './circuitBreaker';
 import { withRetry } from './retry';
 import { sanitizeBio, sanitizeCaption, sanitizeComment, sanitizeDisplayName, sanitizePostTitle, sanitizeText } from './sanitize';
-import { compressFull, compressThumb } from './imageCompressor';
+import { compressAvatar, compressFull, compressThumb } from './imageCompressor';
 import { todayISO, DEFAULT_TZ } from './dates';
 
 // Community data in Supabase. Only what the athlete chooses to post goes
@@ -342,16 +342,51 @@ function paginate<R extends { created_at: string; id: string }, T>(rows: R[], pa
 
 // ── Feed ─────────────────────────────────────────────────────────────────────
 
-/** Public posts plus your own, newest first. Followers-only posts arrive in a later phase. */
-export async function fetchFeed(userId: string, cursor?: string, pageSize = 20): Promise<ServiceResult<PaginatedResult<CommunityPost>>> {
+// Above this many followees the id list would make the URL too long; RLS
+// (can_view_post) already limits followers-only posts to accepted followers.
+const MAX_FOLLOWEES_IN_FILTER = 150;
+
+/** Visibility filter: public posts, your own, and followers-only posts of people you follow. */
+export function feedVisibilityFilter(userId: string, followeeIds: string[]): string {
+  const ids = followeeIds.filter(isUuid);
+  if (ids.length > MAX_FOLLOWEES_IN_FILTER) return `visibility.in.(public,followers),author_id.eq.${userId}`;
+  const followers = ids.length ? `,and(visibility.eq.followers,author_id.in.(${ids.join(',')}))` : '';
+  return `visibility.eq.public,author_id.eq.${userId}${followers}`;
+}
+
+/** Ids of the people you follow (accepted). */
+export async function getFollowingIds(userId: string): Promise<ServiceResult<string[]>> {
+  const res = await run<{ followee_id: string }[]>((c) => c.from('follows').select('followee_id').eq('follower_id', userId).eq('status', 'accepted'));
+  if (res.error || !res.data) return fail(res.error ?? 'Could not load who you follow.');
+  return ok(res.data.map((r) => r.followee_id));
+}
+
+/**
+ * Public posts, your own, and followers-only posts from people you follow,
+ * newest first. Pass `followeeIds` to reuse a list you already have (the feed
+ * hook caches it between polls); otherwise it is fetched.
+ */
+export async function fetchFeed(
+  userId: string,
+  cursor?: string,
+  pageSize = 20,
+  followeeIds?: string[],
+): Promise<ServiceResult<PaginatedResult<CommunityPost>>> {
   if (!isUuid(userId)) return fail('Please sign in again.');
   const after = cursor ? parseCursor(cursor) : null;
   if (cursor && !after) return fail('Invalid page cursor.');
+  let following = followeeIds;
+  if (!following) {
+    const f = await getFollowingIds(userId);
+    if (f.error || !f.data) return fail(f.error ?? 'Could not load the feed.');
+    following = f.data;
+  }
+  const visibility = feedVisibilityFilter(userId, following);
   const res = await run<PostRow[]>((c) => {
     let q = c
       .from('posts')
       .select(POST_SELECT)
-      .or(`visibility.eq.public,author_id.eq.${userId}`)
+      .or(visibility)
       .eq('my_kudos.user_id', userId);
     if (after) q = q.or(cursorFilter(after, 'lt'));
     return q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(pageSize + 1);
@@ -484,9 +519,8 @@ export async function uploadPostPhoto(userId: string, postId: string, file: Blob
 }
 
 /** A 24-hour signed URL for one variant, or null if it can't be made. */
-export async function getPhotoUrl(photoPath: string, variant: 'thumb' | 'full' = 'thumb'): Promise<string | null> {
-  const res = await run<{ signedUrl: string }>((c) => c.storage.from(BUCKET).createSignedUrl(photoFile(photoPath, variant), PHOTO_URL_TTL_SEC));
-  return res.data?.signedUrl ?? null;
+export function getPhotoUrl(photoPath: string, variant: 'thumb' | 'full' = 'thumb'): Promise<string | null> {
+  return signUrl(photoFile(photoPath, variant));
 }
 
 // Signed URLs are reused instead of re-signed on every render. Module level, not React state.
@@ -496,14 +530,27 @@ const CACHE_TTL_MS = 23 * 60 * 60 * 1000; // an hour short of the real expiry
 const photoUrlCache = new Map<string, { url: string; expiresAt: number }>();
 const photoUrlInFlight = new Map<string, Promise<string | null>>();
 
-export async function getCachedPhotoUrl(photoPath: string, variant: 'thumb' | 'full' = 'thumb'): Promise<string | null> {
-  const key = photoFile(photoPath, variant);
+export function getCachedPhotoUrl(photoPath: string, variant: 'thumb' | 'full' = 'thumb'): Promise<string | null> {
+  return cachedSignedUrl(photoFile(photoPath, variant));
+}
+
+/** Signed URL for a profile photo (its full object path, e.g. "<user>/avatar.webp"). */
+export function getCachedAvatarUrl(avatarPath: string): Promise<string | null> {
+  return cachedSignedUrl(avatarPath);
+}
+
+async function signUrl(objectPath: string): Promise<string | null> {
+  const res = await run<{ signedUrl: string }>((c) => c.storage.from(BUCKET).createSignedUrl(objectPath, PHOTO_URL_TTL_SEC));
+  return res.data?.signedUrl ?? null;
+}
+
+async function cachedSignedUrl(key: string): Promise<string | null> {
   const hit = photoUrlCache.get(key);
   if (hit && hit.expiresAt - Date.now() > REUSE_MARGIN_MS) return hit.url;
   const pending = photoUrlInFlight.get(key);
   if (pending) return pending; // a feed renders the same photo in several places at once
 
-  const request = getPhotoUrl(photoPath, variant)
+  const request = signUrl(key)
     .then((url) => {
       if (url) {
         if (!photoUrlCache.has(key) && photoUrlCache.size >= PHOTO_CACHE_MAX) evictEarliest();
@@ -679,4 +726,115 @@ export async function updateProfile(
   const res = await run<ProfileRow>((c) => c.from('profiles').update(patch).eq('id', userId).select(PROFILE_COLS).single(), { write: true });
   if (res.error || !res.data) return fail(res.error ?? 'Could not update the profile.');
   return ok(toProfile(res.data));
+}
+
+// ── Profiles, follows and search (Phase 5) ───────────────────────────────────
+
+export type FollowStatus = 'none' | 'pending' | 'accepted';
+
+/** Where you stand with someone: not following, requested, or following. */
+export async function getFollowStatus(followerId: string, followeeId: string): Promise<ServiceResult<FollowStatus>> {
+  const res = await run<{ status: 'pending' | 'accepted' } | null>((c) =>
+    c.from('follows').select('status').eq('follower_id', followerId).eq('followee_id', followeeId).maybeSingle(),
+  );
+  if (res.error) return fail(res.error);
+  return ok(res.data?.status ?? 'none');
+}
+
+/**
+ * Posts on someone's profile, newest first: everything if it's you, public and
+ * followers-only if you follow them, public otherwise. RLS hides everything
+ * if either of you blocked the other.
+ */
+export async function getProfilePosts(
+  profileUserId: string,
+  viewerId: string,
+  cursor?: string,
+  pageSize = 20,
+): Promise<ServiceResult<PaginatedResult<CommunityPost>>> {
+  if (!isUuid(profileUserId) || !isUuid(viewerId)) return fail('Profile not found.');
+  const after = cursor ? parseCursor(cursor) : null;
+  if (cursor && !after) return fail('Invalid page cursor.');
+  let visible: Visibility[] = ['public', 'followers', 'private'];
+  if (profileUserId !== viewerId) {
+    const status = await getFollowStatus(viewerId, profileUserId);
+    if (status.error) return fail(status.error);
+    visible = status.data === 'accepted' ? ['public', 'followers'] : ['public'];
+  }
+  const res = await run<PostRow[]>((c) => {
+    let q = c.from('posts').select(POST_SELECT).eq('author_id', profileUserId).in('visibility', visible).eq('my_kudos.user_id', viewerId);
+    if (after) q = q.or(cursorFilter(after, 'lt'));
+    return q.order('created_at', { ascending: false }).order('id', { ascending: false }).limit(pageSize + 1);
+  });
+  if (res.error || !res.data) return fail(res.error ?? 'Could not load posts.');
+  return ok(paginate(res.data, pageSize, (r) => toPost(r, viewerId)));
+}
+
+/** Posts of this user that you can see (all of them, if it's you). */
+export async function getPostCount(userId: string): Promise<ServiceResult<number>> {
+  // HEAD request: no rows travel, only the count.
+  const res = await run<number | null>((c) =>
+    c.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', userId).then((r) => ({ data: r.count, error: r.error, status: r.status })),
+  );
+  if (res.error) return fail(res.error);
+  return ok(res.data ?? 0);
+}
+
+/** Both counts in one call (the profile header needs both). */
+export async function getFollowCounts(userId: string): Promise<ServiceResult<{ followers: number; following: number }>> {
+  const res = await run<{ followers: number; following: number }[]>((c) => c.rpc('profile_follow_counts', { p_user: userId }));
+  if (res.error || !res.data) return fail(res.error ?? 'Could not load follow counts.');
+  const row = res.data[0];
+  return ok({ followers: Number(row?.followers ?? 0), following: Number(row?.following ?? 0) });
+}
+
+export async function getFollowerCount(userId: string): Promise<ServiceResult<number>> {
+  const res = await getFollowCounts(userId);
+  return res.data ? ok(res.data.followers) : fail(res.error ?? 'Could not load follow counts.');
+}
+
+export async function getFollowingCount(userId: string): Promise<ServiceResult<number>> {
+  const res = await getFollowCounts(userId);
+  return res.data ? ok(res.data.following) : fail(res.error ?? 'Could not load follow counts.');
+}
+
+/** Accepted followers of, or people followed by, any profile you can see. */
+export async function getFollowList(userId: string, direction: 'followers' | 'following'): Promise<ServiceResult<CommunityProfile[]>> {
+  const res = await run<ProfileRow[]>((c) => c.rpc('profile_follows', { p_user: userId, p_direction: direction }));
+  if (res.error || !res.data) return fail(res.error ?? 'Could not load the list.');
+  return ok(res.data.map((r) => toProfile(r)));
+}
+
+/** Escape LIKE wildcards so a search for "50%" means the text "50%". */
+export const escapeLike = (s: string) => s.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+
+/** Athletes whose name contains the query. RLS already hides anyone blocked either way. */
+export async function searchProfiles(query: string, currentUserId: string, limit = 20): Promise<ServiceResult<CommunityProfile[]>> {
+  const q = sanitizeText(query, { maxLength: 60, singleLine: true });
+  if (!q) return ok([]);
+  const res = await run<ProfileRow[]>((c) =>
+    c.from('profiles').select(PROFILE_COLS).ilike('display_name', `%${escapeLike(q)}%`).neq('id', currentUserId).order('display_name').limit(limit),
+  );
+  if (res.error || !res.data) return fail(res.error ?? 'Search failed.');
+  return ok(res.data.map((r) => toProfile(r)));
+}
+
+const avatarFile = (userId: string) => `${userId}/avatar.webp`;
+
+/** Compress, upload to "<user>/avatar.webp" (replacing the old one) and save it on the profile. */
+export async function uploadAvatar(userId: string, file: Blob): Promise<ServiceResult<string>> {
+  if (!getSupabase()) return fail(NOT_CONFIGURED);
+  let avatar: Awaited<ReturnType<typeof compressAvatar>>;
+  try {
+    avatar = await compressAvatar(file);
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : 'This photo could not be prepared.');
+  }
+  const path = avatarFile(userId);
+  const up = await run((c) => c.storage.from(BUCKET).upload(path, avatar.blob, { contentType: avatar.blob.type, upsert: true, cacheControl: '3600' }), { write: true });
+  if (up.error) return fail(up.error);
+  photoUrlCache.delete(path); // the old signed URL would show the old photo
+  const saved = await run((c) => c.from('profiles').update({ avatar_path: path }).eq('id', userId), { write: true });
+  if (saved.error) return fail(saved.error);
+  return ok(path);
 }
