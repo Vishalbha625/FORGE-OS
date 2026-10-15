@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Loader2, Plus, RefreshCw, Search, WifiOff } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { useFeed } from '../../hooks/useFeed';
-import type { CommunityPost } from '../../lib/communityService';
+import { getProfile, type CommunityPost } from '../../lib/communityService';
 import { PostCard } from './PostCard';
 import { CreatePostSheet } from './CreatePostSheet';
 import { EditPostSheet } from './EditPostSheet';
@@ -17,6 +17,17 @@ export function FeedPage() {
   const [editing, setEditing] = useState<CommunityPost | null>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const { hasMore, loadMore } = feed;
+  // The name and photo from your community profile (it can be edited), fetched
+  // once per visit, not on every poll. Until then: the name you signed up with.
+  const [me, setMe] = useState<{ name: string; avatar?: string } | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    getProfile(userId).then((res) => live && res.data && setMe({ name: res.data.display_name, avatar: res.data.avatar_path }));
+    return () => {
+      live = false;
+    };
+  }, [userId]);
 
   // Infinite scroll: fetch the next page as the end of the list comes into view.
   useEffect(() => {
@@ -27,12 +38,14 @@ export function FeedPage() {
     return () => io.disconnect();
   }, [hasMore, loadMore, feed.posts.length]);
 
-  const name = myDisplayName(user);
+  const name = me?.name ?? myDisplayName(user);
 
   return (
     <div className="pb-8">
       <header className="mb-4 mt-3 flex items-center gap-3">
-        <Avatar name={name} />
+        <Link to={`/community/profile/${userId}`} aria-label="Your profile" className="shrink-0">
+          <Avatar name={name} path={me?.avatar} />
+        </Link>
         <h1 className="min-w-0 flex-1 truncate text-xl font-medium tracking-tight">Forge OS community</h1>
         <button className="grid h-9 w-9 place-items-center rounded-md border border-border text-foreground/80 hover:text-foreground disabled:opacity-40" onClick={() => void feed.refresh()} disabled={feed.refreshing || feed.isOffline} aria-label="Refresh feed">
           <RefreshCw className={`h-4 w-4 ${feed.refreshing ? 'motion-safe:animate-spin' : ''}`} aria-hidden />

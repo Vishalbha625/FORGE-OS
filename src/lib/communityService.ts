@@ -838,3 +838,12 @@ export async function uploadAvatar(userId: string, file: Blob): Promise<ServiceR
   if (saved.error) return fail(saved.error);
   return ok(path);
 }
+
+/** People you blocked (only you can list them), newest first. */
+export async function getBlockedUsers(userId: string): Promise<ServiceResult<CommunityProfile[]>> {
+  const res = await run<{ id: string; display_name: string; avatar_path: string | null; blocked_at: string }[]>((c) =>
+    c.rpc('get_blocked_users', { blocker: userId }),
+  );
+  if (res.error || !res.data) return fail(res.error ?? 'Could not load your blocked list.');
+  return ok(res.data.map((r) => ({ id: r.id, display_name: r.display_name, avatar_path: opt(r.avatar_path), goals: [], created_at: r.blocked_at })));
+}

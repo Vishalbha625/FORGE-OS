@@ -31,4 +31,15 @@ describe('token bucket', () => {
     expect(bucket.getRemainingTokens()).toBe(2);
     expect(bucket.tryConsume().allowed).toBe(true);
   });
+
+  it('reports how long until the bucket is full again', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(0);
+    const bucket = new TokenBucket(2, HOUR);
+    expect(bucket.msUntilRefill()).toBe(0); // untouched: already full
+    bucket.tryConsume();
+    now.mockReturnValue(15 * 60 * 1000);
+    expect(bucket.msUntilRefill()).toBe(45 * 60 * 1000);
+    now.mockReturnValue(HOUR);
+    expect(bucket.msUntilRefill()).toBe(0);
+  });
 });

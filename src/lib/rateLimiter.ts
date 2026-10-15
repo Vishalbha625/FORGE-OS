@@ -38,6 +38,13 @@ export class TokenBucket {
     return this.tokens;
   }
 
+  /** ms until the bucket is full again; 0 when it already is. */
+  msUntilRefill(): number {
+    const now = Date.now();
+    this.refill(now);
+    return this.windowStart === undefined ? 0 : Math.max(0, this.windowStart + this.refillIntervalMs - now);
+  }
+
   private refill(now: number): void {
     if (this.windowStart !== undefined && now - this.windowStart >= this.refillIntervalMs) {
       this.tokens = this.maxTokens;

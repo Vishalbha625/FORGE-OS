@@ -227,5 +227,23 @@ do $$ begin
 end $$;
 commit;
 
+\echo '20. only the blocker can list the people they blocked'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'alice', true) \gset
+do $$ begin
+  assert (select array_agg(display_name) from public.get_blocked_users('11111111-1111-1111-1111-111111111111')) = array['Carol'], 'alice should see carol in her block list';
+  -- carol's profile itself stays hidden from alice (blocks hide everything)
+  assert (select count(*) from public.profiles where display_name = 'Carol') = 0, 'blocked profile became readable';
+end $$;
+commit;
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'dave', true) \gset
+do $$ begin assert (select count(*) from public.get_blocked_users('11111111-1111-1111-1111-111111111111')) = 0, 'dave read alice''s block list'; end $$;
+commit;
+begin; set local role anon; select set_config('request.jwt.claim.sub', '', true) \gset
+do $$ begin
+  perform public.get_blocked_users('11111111-1111-1111-1111-111111111111');
+  raise exception 'FAIL: anonymous caller listed blocks';
+exception when insufficient_privilege then null; end $$;
+commit;
+
 \echo ''
 \echo 'ALL RLS TESTS PASSED'

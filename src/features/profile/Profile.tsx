@@ -326,6 +326,12 @@ function CommunityAccountSection() {
         ) : (
           <Link to="/login" state={{ from: '/community' }} className="link">Sign in to join the community</Link>
         )}
+        {isSupabaseAvailable && !loading && isAuthenticated && (
+          <div className="mt-3 flex gap-4 border-t border-border pt-3">
+            <Link to={`/community/profile/${user?.id ?? ''}`} className="link">Your community profile</Link>
+            <Link to="/community/blocked" className="link">Blocked users</Link>
+          </div>
+        )}
       </Card>
     </>
   );

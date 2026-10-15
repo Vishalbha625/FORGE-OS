@@ -35,8 +35,9 @@ export ANTHROPIC_API_KEY=sk-ant-...   # stays on the server, never sent to the b
 npm start
 ```
 
-Then in the app: **Coach → Use AI** (or Profile → AI coach). Each question sends a summarized
-4-week snapshot of your logs (no photos) to your local server, which calls `claude-opus-5-5`
+Then in the app: **Coach → AI** (or Profile → AI coach). Each question sends a short summary of your
+logs (weekly totals and averages, latest check-in; never individual workouts, meals, nights, notes or
+photos, see `src/lib/coachContext.ts`) to the coach server, which calls `claude-opus-5-5`
 with server-side refusal fallback enabled. Override with `COACH_MODEL` / `COACH_EFFORT`
 (default `medium`). If the server or key is missing, answers fall back to the rule-based coach
 and say so.
@@ -87,8 +88,8 @@ falls back to the rule-based coach if the request fails.
 Health features never need an account. Only `/community` asks you to sign in. Signing out ends the
 community session and never deletes anything on the device.
 
-1. Create a Supabase project and run `supabase/schema.sql`, `supabase/storage.sql`, `supabase/photos.sql` and
-   `supabase/social.sql` (in that order) in its SQL editor.
+1. Create a Supabase project and run `supabase/schema.sql`, `supabase/storage.sql`, `supabase/photos.sql`,
+   `supabase/social.sql` and `supabase/unblock.sql` (in that order) in its SQL editor.
 2. Vercel environment: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Supabase → Project settings →
    API; the anon key is public by design, RLS enforces access). Redeploy: Vite bakes these in at build time.
 3. Supabase → Authentication → URL configuration: Site URL `https://forge-os-black.vercel.app`, and add

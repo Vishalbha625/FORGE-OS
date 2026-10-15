@@ -213,6 +213,12 @@ describe.skipIf(!API)('communityService against PostgREST + RLS', () => {
     expect(must(await svc.searchProfiles('alice', BOB))).toEqual([]);
     expect((await svc.getProfile(ALICE)).error).toBe('Profile not found.');
     await as(ALICE);
+    expect(must(await svc.getBlockedUsers(ALICE)).map((p) => p.display_name)).toEqual(['Bob']);
+    await as(BOB);
+    expect(must(await svc.getBlockedUsers(ALICE))).toEqual([]); // not Bob's list to read
+    expect(must(await svc.getBlockedUsers(BOB))).toEqual([]);
+    await as(ALICE);
     must(await svc.unblockUser(ALICE, BOB));
+    expect(must(await svc.getBlockedUsers(ALICE))).toEqual([]);
   });
 });

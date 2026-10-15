@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generatePlan, plannedWeeklyKm, weeklyTargetKm } from '../lib/plan';
 import { answerQuestion, generateWeeklyReport, type Snapshot } from '../lib/coach';
-import { buildCoachContext } from '../lib/coachContext';
+import { buildAIContext } from '../lib/coachContext';
 import type { Profile, RunRecord, BodyRecord } from '../db/types';
 
 const plan = generatePlan({ startDate: '2026-10-12', raceDate: '2027-01-24' });
@@ -66,19 +66,50 @@ describe('coach honesty (acceptance test 16)', () => {
   });
 });
 
-describe('AI coach context', () => {
+describe('AI coach context (summary only, R1)', () => {
   it('never includes photos', () => {
     const body = [{ id: 'x', eventDate: '2026-10-13', weightKg: 69, photo: 'data:image/jpeg;base64,SECRET' }] as BodyRecord[];
-    const json = JSON.stringify(buildCoachContext(snap({ body })));
+    const json = JSON.stringify(buildAIContext(snap({ body })));
     expect(json).not.toContain('SECRET');
     expect(json).not.toContain('data:image');
+    expect(buildAIContext(snap({ body })).body).toEqual({ date: '2026-10-13', weightKg: 69 });
   });
-  it('only includes records inside the window', () => {
+
+  it('summarizes runs: this week totals and average pace, not individual runs', () => {
     const runs = [
-      { id: 'old', eventDate: '2026-01-01', distanceKm: 42, durationSec: 14000, kind: 'long' },
-      { id: 'new', eventDate: '2026-10-13', distanceKm: 5, durationSec: 1800, kind: 'easy' },
+      { id: 'old', eventDate: '2026-01-01', distanceKm: 42, durationSec: 14000, kind: 'long', notes: 'OLD-NOTE' },
+      { id: 'a', eventDate: '2026-10-12', distanceKm: 5, durationSec: 1800, kind: 'easy', route: 'LAKE-ROUTE', notes: 'KNEE-NOTE' },
+      { id: 'b', eventDate: '2026-10-13', distanceKm: 7.5, durationSec: 2700, kind: 'tempo' },
     ] as RunRecord[];
-    const ctx = buildCoachContext(snap({ runs }));
-    expect(ctx.runs.map((r) => r.km)).toEqual([5]);
+    const ctx = buildAIContext(snap({ runs }));
+    expect(ctx.running).toMatchObject({ thisWeekKm: 12.5, thisWeekRuns: 2, thisWeekAvgPaceSecPerKm: 360 });
+    const json = JSON.stringify(ctx);
+    for (const leak of ['KNEE-NOTE', 'LAKE-ROUTE', 'OLD-NOTE', '"durationSec"', '"distanceKm"']) expect(json).not.toContain(leak);
+  });
+
+  it('summarizes strength, meals and sleep without the individual entries', () => {
+    const s = snap({
+      strength: [{ id: 's', eventDate: '2026-10-13', title: 'Legs', exercises: [{ name: 'Back squat', group: 'legs', sets: [{ reps: 5, weightKg: 123, completed: true }, { reps: 5, weightKg: 123, completed: false }] }] }],
+      nutrition: [
+        { id: 'n1', eventDate: '2026-10-13', meal: 'lunch', name: 'PANEER-BOWL', calories: 600, protein: 40 },
+        { id: 'n2', eventDate: '2026-10-13', meal: 'dinner', name: 'DAL', calories: 500 },
+      ],
+      sleep: [{ id: 'z', eventDate: '2026-10-13', bedtime: '', wakeTime: '', durationMin: 450, restingHr: 52, hrv: 77 }],
+      recovery: [{ id: 'r', eventDate: '2026-10-13', fatigue: 2, soreness: 3, motivation: 4, stress: 2, pain: 'LEFT-KNEE' }],
+    } as Partial<Snapshot>);
+    const ctx = buildAIContext(s);
+    expect(ctx.strength).toEqual({ thisWeekSessions: 1, muscleGroupsHit: ['legs'], completedSets: 1 });
+    expect(ctx.nutrition).toMatchObject({ daysLogged: 1, avgDailyCalories: 1100, avgDailyProteinG: 40 });
+    expect(ctx.sleep).toEqual({ nightsLogged: 1, avgHours: 7.5 });
+    expect(ctx.recovery).toEqual({ date: '2026-10-13', fatigue: 2, soreness: 3, motivation: 4, stress: 2 });
+    const json = JSON.stringify(ctx);
+    for (const leak of ['123', 'Back squat', 'PANEER', 'DAL', 'LEFT-KNEE', 'restingHr', 'hrv', '"77"']) expect(json).not.toContain(leak);
+  });
+
+  it('leaves out free-text health fields from the profile', () => {
+    const profile = { ...snap().profile, injuries: 'ACL-TEAR', allergies: 'PEANUT', weightKg: 70, age: 23 } as Snapshot['profile'];
+    const json = JSON.stringify(buildAIContext(snap({ profile })));
+    expect(json).not.toContain('ACL-TEAR');
+    expect(json).not.toContain('PEANUT');
   });
 });

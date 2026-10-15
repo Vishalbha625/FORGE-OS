@@ -23,8 +23,9 @@ const PostDetailPage = page(() => import('./features/community/PostDetailPage'),
 const SearchUsersPage = page(() => import('./features/community/SearchUsersPage'), 'SearchUsersPage');
 const ProfilePage = page(() => import('./features/community/ProfilePage'), 'ProfilePage');
 const FollowersListPage = page(() => import('./features/community/FollowersListPage'), 'FollowersListPage');
+const BlockedUsersPage = page(() => import('./features/community/BlockedUsersPage'), 'BlockedUsersPage');
 const Profile = page(() => import('./features/profile/Profile'), 'Profile');
-const Coach = page(() => import('./features/coach/Coach'), 'Coach');
+const Coach = page(() => import('./features/coach/CoachPage'), 'CoachPage');
 const Analytics = page(() => import('./features/analytics/Analytics'), 'Analytics');
 const Sleep = page(() => import('./features/health/Sleep'), 'Sleep');
 const Steps = page(() => import('./features/health/Steps'), 'Steps');
@@ -84,6 +85,7 @@ function MainApp() {
             <Route path="/community" element={<AuthGuard><FeedPage /></AuthGuard>} />
             <Route path="/community/post/:postId" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
             <Route path="/community/search" element={<AuthGuard><SearchUsersPage /></AuthGuard>} />
+            <Route path="/community/blocked" element={<AuthGuard><BlockedUsersPage /></AuthGuard>} />
             <Route path="/community/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} />
             <Route path="/community/profile/:userId/followers" element={<AuthGuard><FollowersListPage /></AuthGuard>} />
             <Route path="/community/profile/:userId/following" element={<AuthGuard><FollowersListPage /></AuthGuard>} />

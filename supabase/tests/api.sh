@@ -33,7 +33,7 @@ run "initdb -D '$tmp/data' -U postgres -A trust >/dev/null"
 run "pg_ctl -D '$tmp/data' -o '-p $pgport -c listen_addresses=127.0.0.1 -k $tmp' -l '$tmp/log' -w start >/dev/null"
 pg="postgres://postgres@127.0.0.1:$pgport/postgres"
 p() { psql "$pg" -v ON_ERROR_STOP=1 -q "$@" >/dev/null 2>&1; }
-p -f "$here/supabase_shim.sql"; p -f "$root/schema.sql"; p -f "$root/storage.sql"; p -f "$root/photos.sql"; p -f "$root/social.sql"
+p -f "$here/supabase_shim.sql"; p -f "$root/schema.sql"; p -f "$root/storage.sql"; p -f "$root/photos.sql"; p -f "$root/social.sql"; p -f "$root/unblock.sql"
 p -c "create role authenticator login noinherit password 'pw'; grant anon, authenticated to authenticator;"
 p -c "insert into auth.users (id, email) values ('11111111-1111-4111-8111-111111111111','alice@x'), ('22222222-2222-4222-8222-222222222222','bob@x');"
 p -c "insert into public.profiles (id, display_name) values ('11111111-1111-4111-8111-111111111111','Alice'), ('22222222-2222-4222-8222-222222222222','Bob');"

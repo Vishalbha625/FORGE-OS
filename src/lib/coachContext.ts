@@ -1,101 +1,132 @@
 import type { Snapshot } from './coach';
 import { generateWeeklyReport } from './coach';
 import { addDays, startOfWeek, endOfWeek } from './dates';
-import { round1, round0 } from './calc';
+import { mean, round1, round0 } from './calc';
+import type { MuscleGroup, PlannedWorkout } from '../db/types';
 
-// Compact, privacy-conscious snapshot for the server-side AI coach.
-// - Only the last few weeks of history, summarized per record.
-// - No photos, no display photo, no free-text beyond short notes.
-// Everything the AI sees is visible in this one function.
+// What the AI coach server receives: a SUMMARY of the athlete's data, never
+// the records themselves (R1). No individual runs, sets, meals, nights,
+// notes, injuries, allergies or photos; totals, averages and latest values
+// only. The rule-based coach reads the full data on the device instead.
+// Everything the server sees is built in this one function.
 
-const trim = (s: string | undefined, n = 160) => (s ? (s.length > n ? s.slice(0, n) + '…' : s) : undefined);
+const avg = (nums: number[]) => {
+  const m = mean(nums);
+  return m === undefined ? undefined : round1(m);
+};
 
-export function buildCoachContext(s: Snapshot, days = 28) {
-  const from = addDays(s.today, -days + 1);
-  const recent = <T extends { eventDate: string }>(arr: T[]) =>
-    arr.filter((r) => r.eventDate >= from && r.eventDate <= s.today).sort((a, b) => a.eventDate.localeCompare(b.eventDate));
-
-  const p = s.profile;
-  const profile = p && {
-    age: p.age,
-    heightCm: p.heightCm,
-    weightKg: p.weightKg,
-    goalWeightKg: p.goalWeightKg,
-    goals: p.goals,
-    primaryGoal: p.primaryGoal,
-    diet: p.diet,
-    allergies: p.allergies,
-    raceDivision: p.raceDivision,
-    raceDate: p.raceDate,
-    trainingStartDate: p.trainingStartDate,
-    weeklyVolumeKm: p.weeklyVolumeKm,
-    best5kSec: p.best5kSec,
-    best10kSec: p.best10kSec,
-    injuries: trim(p.injuries),
-    targets: { calories: p.calorieTarget, protein: p.proteinTarget, carbs: p.carbTarget, fat: p.fatTarget, waterMl: p.waterTargetMl, steps: p.stepGoal },
-    supplements: p.supplements.filter((x) => x.active).map((x) => x.name),
-    timezone: p.timezone,
+/** A planned session reduced to what it is, not how it is prescribed. */
+const sessionSummary = (w: PlannedWorkout | undefined) =>
+  w && {
+    title: w.title,
+    types: w.types,
+    runKm: w.runs.reduce((sum, r) => sum + (r.distanceKm ?? 0), 0) || undefined,
+    deload: w.deload || undefined,
   };
 
-  const planWindow = s.planned
-    .filter((w) => w.eventDate >= addDays(s.today, -7) && w.eventDate <= addDays(s.today, 7))
-    .sort((a, b) => a.eventDate.localeCompare(b.eventDate))
-    .map((w) => ({
-      date: w.eventDate,
-      week: w.weekIndex,
-      phase: w.phase,
-      title: w.title,
-      deload: w.deload || undefined,
-      runs: w.runs.map((r) => ({ kind: r.kind, km: r.distanceKm, rpe: r.targetRPE })),
-      lifts: w.exercises.map((e) => `${e.name} ${e.sets}x${e.reps}`),
-      hyrox: w.hyroxStations.map((h) => h.station),
-      editedByAthlete: w.source === 'manual' || undefined,
-    }));
+export type AIContext = ReturnType<typeof buildAIContext>;
 
-  const nutritionByDay = new Map<string, { calories: number; protein: number; carbs: number; fat: number; entries: string[] }>();
-  for (const n of recent(s.nutrition)) {
-    if (n.eventDate < addDays(s.today, -6)) continue;
-    const d = nutritionByDay.get(n.eventDate) ?? { calories: 0, protein: 0, carbs: 0, fat: 0, entries: [] };
-    d.calories += n.calories ?? 0;
-    d.protein += n.protein ?? 0;
-    d.carbs += n.carbs ?? 0;
-    d.fat += n.fat ?? 0;
-    d.entries.push(`${n.meal}: ${n.name}${n.calories === undefined ? ' (no kcal logged)' : ''}`);
-    nutritionByDay.set(n.eventDate, d);
+export function buildAIContext(s: Snapshot) {
+  const today = s.today;
+  const weekStart = startOfWeek(today);
+  const weekEnd = endOfWeek(today);
+  const last7 = addDays(today, -6);
+  const inWeek = <T extends { eventDate: string }>(arr: T[]) => arr.filter((r) => r.eventDate >= weekStart && r.eventDate <= today);
+  const inLast7 = <T extends { eventDate: string }>(arr: T[]) => arr.filter((r) => r.eventDate >= last7 && r.eventDate <= today);
+  const latest = <T extends { eventDate: string }>(arr: T[]) => [...arr].filter((r) => r.eventDate <= today).sort((a, b) => b.eventDate.localeCompare(a.eventDate))[0];
+
+  // Running: this week, plus weekly totals for the last four weeks (trend only).
+  const weekRuns = inWeek(s.runs);
+  const weekKm = round1(weekRuns.reduce((sum, r) => sum + r.distanceKm, 0));
+  const weekSec = weekRuns.reduce((sum, r) => sum + r.durationSec, 0);
+  const kmByWeek = [3, 2, 1, 0].map((ago) => {
+    const start = addDays(weekStart, -7 * ago);
+    const end = addDays(start, 6);
+    const runs = s.runs.filter((r) => r.eventDate >= start && r.eventDate <= end && r.eventDate <= today);
+    return { weekStart: start, km: round1(runs.reduce((sum, r) => sum + r.distanceKm, 0)), runs: runs.length };
+  });
+
+  // Strength: which muscle groups and how many completed sets, this week.
+  const weekStrength = inWeek(s.strength);
+  const groups = new Set<MuscleGroup>();
+  let totalSets = 0;
+  for (const session of weekStrength) {
+    for (const ex of session.exercises) {
+      const done = ex.sets.filter((st) => st.completed).length;
+      if (done > 0) groups.add(ex.group);
+      totalSets += done;
+    }
   }
 
-  const water = new Map<string, number>();
-  for (const w of recent(s.water)) water.set(w.eventDate, (water.get(w.eventDate) ?? 0) + w.amountMl);
+  // Nutrition: daily averages over the days that have entries (last 7 days).
+  const byDay = new Map<string, { calories?: number; protein?: number; carbs?: number; fat?: number }>();
+  for (const n of inLast7(s.nutrition)) {
+    const d = byDay.get(n.eventDate) ?? {};
+    for (const k of ['calories', 'protein', 'carbs', 'fat'] as const) {
+      const v = n[k];
+      if (v !== undefined) d[k] = (d[k] ?? 0) + v;
+    }
+    byDay.set(n.eventDate, d);
+  }
+  const days = [...byDay.values()];
+  const dailyAvg = (k: 'calories' | 'protein' | 'carbs' | 'fat') => {
+    const vals = days.map((d) => d[k]).filter((v): v is number => v !== undefined);
+    return vals.length ? round0(vals.reduce((a, b) => a + b, 0) / vals.length) : undefined;
+  };
 
+  const waterByDay = new Map<string, number>();
+  for (const w of inLast7(s.water)) waterByDay.set(w.eventDate, (waterByDay.get(w.eventDate) ?? 0) + w.amountMl);
+
+  const sleep7 = inLast7(s.sleep);
+  const steps7 = inLast7(s.steps);
+  const rec = latest(s.recovery);
+  const body = latest(s.body.filter((b) => b.weightKg !== undefined));
+  const p = s.profile;
+
+  // Plan: where the athlete is, and today/tomorrow only.
+  const todays = s.planned.find((w) => w.eventDate === today);
+  const tomorrow = s.planned.find((w) => w.eventDate === addDays(today, 1));
   const report = generateWeeklyReport(s);
 
   return {
-    today: s.today,
-    currentWeek: { start: startOfWeek(s.today), end: endOfWeek(s.today) },
-    windowDays: days,
-    note: 'Only records inside the window are included. Days with no record mean nothing was logged, not zero.',
-    profile,
-    plannedSessions: planWindow,
-    runs: recent(s.runs).map((r) => ({ date: r.eventDate, kind: r.kind, km: r.distanceKm, durationSec: r.durationSec, paceSecPerKm: r.avgPaceSecPerKm, rpe: r.rpe, notes: trim(r.notes) })),
-    strength: recent(s.strength).map((x) => ({
-      date: x.eventDate,
-      title: x.title,
-      exercises: x.exercises.map((e) => ({ name: e.name, sets: e.sets.filter((st) => st.reps !== undefined || st.weightKg !== undefined).map((st) => `${st.reps ?? '?'}x${st.weightKg ?? '?'}kg${st.rpe ? `@${st.rpe}` : ''}`) })),
-    })),
-    hyrox: recent(s.hyrox).map((h) => ({ date: h.eventDate, mode: h.mode, title: h.title, stations: h.stations.map((st) => ({ station: st.station, timeSec: st.timeSec, reps: st.reps, distanceM: st.distanceM, loadKg: st.loadKg, breaks: st.breaks })) })),
-    nutritionLast7Days: [...nutritionByDay.entries()].map(([date, d]) => ({ date, calories: round0(d.calories), protein: round0(d.protein), carbs: round0(d.carbs), fat: round0(d.fat), entries: d.entries.slice(0, 15) })),
-    waterMlByDay: [...water.entries()].map(([date, ml]) => ({ date, ml })),
-    sleep: recent(s.sleep).map((x) => ({ date: x.eventDate, hours: round1(x.durationMin / 60), quality: x.quality, restingHr: x.restingHr, hrv: x.hrv, source: x.source })),
-    steps: recent(s.steps).map((x) => ({ date: x.eventDate, steps: x.steps, source: x.source })),
-    bodyWeight: recent(s.body).filter((b) => b.weightKg).map((b) => ({ date: b.eventDate, kg: b.weightKg, waistCm: b.waistCm })),
-    recovery: recent(s.recovery).map((r) => ({ date: r.eventDate, fatigue: r.fatigue, soreness: r.soreness, motivation: r.motivation, stress: r.stress, pain: trim(r.pain) })),
-    weeklyReport: {
-      planned: report.planned,
-      running: report.running,
-      strengthSessions: report.strengthSessions,
-      avgSleepHours: report.avgSleepHours,
-      stepsAvg: report.stepsAvg,
-      recoveryConcerns: report.recovery.concerns,
+    today,
+    note: 'Summary of the athlete\'s logs. Missing fields mean nothing was logged, never zero.',
+    athlete: p && {
+      goals: p.goals,
+      primaryGoal: p.primaryGoal,
+      raceDivision: p.raceDivision,
+      raceDate: p.raceDate,
+      diet: p.diet,
+      heightCm: p.heightCm,
+      targets: { calories: p.calorieTarget, protein: p.proteinTarget, carbs: p.carbTarget, fat: p.fatTarget, waterMl: p.waterTargetMl, steps: p.stepGoal },
     },
+    plan: {
+      phase: (todays ?? s.planned.find((w) => w.eventDate >= today))?.phase,
+      week: (todays ?? s.planned.find((w) => w.eventDate >= today))?.weekIndex,
+      thisWeek: { start: weekStart, end: weekEnd, sessionsPlanned: report.planned.total, sessionsCompleted: report.planned.completed, sessionsMissed: report.planned.missed },
+      today: sessionSummary(todays),
+      tomorrow: sessionSummary(tomorrow),
+    },
+    running: {
+      thisWeekKm: weekKm,
+      thisWeekRuns: weekRuns.length,
+      thisWeekAvgPaceSecPerKm: weekKm > 0 && weekSec > 0 ? round0(weekSec / weekKm) : undefined,
+      plannedKmThisWeek: report.running.plannedKm,
+      last4Weeks: kmByWeek,
+    },
+    strength: { thisWeekSessions: weekStrength.length, muscleGroupsHit: [...groups], completedSets: totalSets },
+    hyrox: { thisWeekSessions: inWeek(s.hyrox).length },
+    nutrition: {
+      daysLogged: days.length,
+      avgDailyCalories: dailyAvg('calories'),
+      avgDailyProteinG: dailyAvg('protein'),
+      avgDailyCarbsG: dailyAvg('carbs'),
+      avgDailyFatG: dailyAvg('fat'),
+      avgDailyWaterMl: waterByDay.size ? round0([...waterByDay.values()].reduce((a, b) => a + b, 0) / waterByDay.size) : undefined,
+    },
+    sleep: { nightsLogged: sleep7.length, avgHours: avg(sleep7.map((x) => x.durationMin / 60)) },
+    steps: { daysLogged: steps7.length, avgDaily: steps7.length ? round0(steps7.reduce((a, x) => a + x.steps, 0) / steps7.length) : undefined },
+    recovery: rec && { date: rec.eventDate, fatigue: rec.fatigue, soreness: rec.soreness, motivation: rec.motivation, stress: rec.stress },
+    body: body && { date: body.eventDate, weightKg: body.weightKg },
   };
 }

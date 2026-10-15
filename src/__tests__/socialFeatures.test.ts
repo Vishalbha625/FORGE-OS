@@ -15,7 +15,7 @@ vi.mock('../lib/imageCompressor', () => ({
 import { getSupabase } from '../lib/supabase';
 import { supabaseCircuit } from '../lib/circuitBreaker';
 import {
-  blockUser, clearPhotoUrlCache, escapeLike, feedVisibilityFilter, getFollowCounts, getFollowStatus, getProfilePosts,
+  blockUser, clearPhotoUrlCache, getBlockedUsers, escapeLike, feedVisibilityFilter, getFollowCounts, getFollowStatus, getProfilePosts,
   searchProfiles, uploadAvatar,
 } from '../lib/communityService';
 import { getDB } from '../db/database';
@@ -134,5 +134,12 @@ describe('followers-only posts', () => {
     await mergeFeedUpdate(db, [post('a', OTHER), post('bb', ME), post('ccc', OTHER)]);
     expect(await removeAuthorFromCache(db, OTHER)).toBe(2);
     expect((await getCachedFeed(db)).map((p) => p.id)).toEqual(['bb']);
+  });
+
+  it('lists the people you blocked through the database function, missing photos as undefined', async () => {
+    const { queries } = use(() => okRes([{ id: OTHER, display_name: 'Spammer', avatar_path: null, blocked_at: '2026-10-15T08:00:00+00:00' }]));
+    expect(await getBlockedUsers(ME)).toEqual({ data: [{ id: OTHER, display_name: 'Spammer', avatar_path: undefined, goals: [], created_at: '2026-10-15T08:00:00+00:00' }], error: null });
+    expect(queries.map((q) => q.table)).toEqual(['rpc:get_blocked_users']);
+    expect(argsOf(queries[0], 'rpc')).toEqual([{ blocker: ME }]);
   });
 });
