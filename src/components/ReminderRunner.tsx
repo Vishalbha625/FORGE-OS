@@ -38,9 +38,10 @@ export async function notify(title: string, body: string, toast?: (m: string) =>
 }
 
 /**
- * Checks reminders every 30 s while the app is open. This is honest foreground
- * scheduling: browsers don't run page code when the app is closed, so true
- * background delivery would need a push service.
+ * Checks reminders every 60 s while the app is open and shows each due one as
+ * a system notification when allowed, otherwise as an in-app toast. This is
+ * honest foreground scheduling: browsers don't run page code when the app is
+ * closed, so true background delivery would need a push service.
  */
 export function ReminderRunner() {
   const { settings, profile, data, today } = useApp();
@@ -64,12 +65,12 @@ export function ReminderRunner() {
         quietHours: s.quietHours,
       });
       for (const r of due) {
-        markFired(r.key, t);
+        for (const id of r.fireIds) markFired(id, t);
         notify(r.title, r.body, toast);
       }
     };
     tick();
-    const id = window.setInterval(tick, 30000);
+    const id = window.setInterval(tick, 60_000);
     return () => window.clearInterval(id);
   }, [toast]);
 

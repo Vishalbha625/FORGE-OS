@@ -122,10 +122,15 @@ export function combineDateTime(dateISO: string, hhmm: string): string {
 }
 
 export function nowClock(tz: string = DEFAULT_TZ): string {
+  return clockAt(new Date(), tz);
+}
+
+/** HH:MM (00:00 to 23:59) of a moment in a timezone. */
+export function clockAt(d: Date, tz: string = DEFAULT_TZ): string {
   return new Intl.DateTimeFormat('en-GB', {
     timeZone: tz,
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false,
-  }).format(new Date());
+    hourCycle: 'h23',
+  }).format(d);
 }

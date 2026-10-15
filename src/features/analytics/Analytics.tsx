@@ -1,24 +1,22 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../../store/AppContext';
-import { AppHeader } from '../../components/Layout';
-import { Card, Highlight, InfoNote, NotEnoughData, SectionTitle, Segmented, StatTile } from '../../components/ui';
+import { Card, InfoNote, NotEnoughData, SectionTitle, Segmented, StatTile } from '../../components/ui';
 import { MiniBars, MiniLine } from '../../components/charts';
-import { generateWeeklyReport } from '../../lib/coach';
 import { addDays, startOfWeek, fmtDate } from '../../lib/dates';
 import { round1, round0, fmtPace, fmtDuration } from '../../lib/calc';
 
 type Tab = 'running' | 'strength' | 'nutrition' | 'recovery' | 'hyrox';
 
-export function Analytics() {
+/** All-time trends by area: weekly mileage, pace, lifts, food, recovery and HYROX. */
+export function LongTermTrends() {
   const [tab, setTab] = useState<Tab>('running');
   return (
     <div>
-      <AppHeader title="Progress" subtitle={<>Trends from <Highlight>your real records</Highlight>, never filled in.</>} />
-      <WeeklyReportCard />
       <div className="my-3">
         <Segmented
           value={tab}
           onChange={setTab}
+          label="Trend area"
           options={[
             { value: 'running', label: 'Run' },
             { value: 'strength', label: 'Lift' },
@@ -33,27 +31,7 @@ export function Analytics() {
       {tab === 'nutrition' && <NutritionAnalytics />}
       {tab === 'recovery' && <RecoveryAnalytics />}
       {tab === 'hyrox' && <HyroxAnalytics />}
-      <div className="h-6" />
     </div>
-  );
-}
-
-function WeeklyReportCard() {
-  const { snapshot } = useApp();
-  const r = useMemo(() => generateWeeklyReport(snapshot), [snapshot]);
-  return (
-    <Card>
-      <div className="flex justify-between items-center mb-2">
-        <span className="font-semibold text-sm">Weekly report</span>
-        <span className="text-xs text-muted">{fmtDate(r.weekStart)}–{fmtDate(r.weekEnd)}</span>
-      </div>
-      <div className="grid grid-cols-3 gap-2 text-center mb-2">
-        <div><div className="text-lg font-semibold">{r.planned.completed}/{r.planned.total}</div><div className="text-[10px] text-muted">sessions</div></div>
-        <div><div className="text-lg font-semibold text-accent">{r.running.actualKm}</div><div className="text-[10px] text-muted">km run</div></div>
-        <div><div className="text-lg font-semibold">{r.avgSleepHours ?? '–'}</div><div className="text-[10px] text-muted">h sleep</div></div>
-      </div>
-      <div className="text-xs text-muted">Next: {r.priorities[0]}</div>
-    </Card>
   );
 }
 

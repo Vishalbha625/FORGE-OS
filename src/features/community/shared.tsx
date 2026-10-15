@@ -44,7 +44,7 @@ export function Avatar({ name, path, size = 'md' }: { name: string | undefined; 
     };
   }, [path]);
   const dims = AVATAR_SIZE[size];
-  if (url) return <img src={url} alt="" className={`shrink-0 rounded-full border border-border object-cover ${dims}`} onError={() => setUrl(null)} />;
+  if (url) return <img loading="lazy" decoding="async" src={url} alt="" className={`shrink-0 rounded-full border border-border object-cover ${dims}`} onError={() => setUrl(null)} />;
   return (
     <span className={`grid shrink-0 place-items-center rounded-full border border-border bg-secondary font-medium text-foreground/80 ${dims}`} aria-hidden>
       {initials(name)}

@@ -585,7 +585,7 @@ export function LogWeightForm({ onDone, existing }: { onDone: () => void; existi
         <input type="file" accept="image/*" onChange={onPhoto} className="text-sm text-muted" />
         {photo && (
           <div className="relative mt-2">
-            <img src={photo} className="w-full rounded-xl max-h-64 object-cover" alt="Progress photo preview" />
+            <img loading="lazy" decoding="async" src={photo} className="w-full rounded-xl max-h-64 object-cover" alt="Progress photo preview" />
             <button className="absolute top-2 right-2 btn-ghost px-2 py-1 text-xs" onClick={() => setPhoto(undefined)}>Remove</button>
           </div>
         )}

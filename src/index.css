@@ -246,3 +246,15 @@
     opacity: 1;
   }
 }
+
+/* Page transitions: a 150 ms fade in, skipped when motion is reduced. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Opacity only: a transform would re-anchor fixed children (the new post button, sheets). */
+  .page-enter {
+    opacity: 0;
+  }
+  .page-enter-active {
+    opacity: 1;
+    transition: opacity 150ms ease-out;
+  }
+}

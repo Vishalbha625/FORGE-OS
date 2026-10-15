@@ -12,7 +12,8 @@ import { estimateNutrition, cmToFtIn, ageFromDob } from '../../lib/calc';
 import { fmtDate } from '../../lib/dates';
 import { GOAL_LABELS, DEFAULT_SUPPLEMENTS } from '../../lib/constants';
 import type { BackupFile } from '../../db/database';
-import { mergeReminders } from '../../lib/reminders';
+import { calculateNextReminder, mergeReminders } from '../../lib/reminders';
+import { useTheme } from '../../store/theme';
 import { diffKeys } from '../../lib/audit';
 import { notify } from '../../components/ReminderRunner';
 import { coachBaseUrl, coachFetch } from '../../lib/coachApi';
@@ -111,7 +112,7 @@ export function Profile() {
       <Card>
         <div className="flex items-center gap-3">
           <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full border border-border bg-secondary">
-            {profile.photo ? <img src={profile.photo} className="h-full w-full object-cover" alt="" /> : <User className="h-5 w-5 text-muted" aria-hidden />}
+            {profile.photo ? <img loading="lazy" decoding="async" src={profile.photo} className="h-full w-full object-cover" alt="" /> : <User className="h-5 w-5 text-muted" aria-hidden />}
           </div>
           <div className="min-w-0 flex-1">
             <div className="font-montserrat text-lg font-semibold">{profile.displayName}</div>
@@ -211,10 +212,11 @@ export function Profile() {
       <SectionTitle lead={`${totalRecords} records stored on this device.`}>Data and backup</SectionTitle>
       <Card>
         <div className="grid grid-cols-2 gap-2">
-          <button className="btn-ghost" onClick={doExport}><Download className="h-4 w-4" aria-hidden /> Export</button>
+          <button className="btn-ghost" onClick={doExport}><Download className="h-4 w-4" aria-hidden /> Export my data</button>
           <button className="btn-ghost" onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" aria-hidden /> Import</button>
         </div>
         <input ref={fileRef} type="file" accept="application/json" className="hidden" onChange={onImportFile} aria-label="Choose a backup file" />
+        <p className="mt-2 text-xs text-muted">A JSON file of everything stored on this device: profile, settings, plan, every log and photo, and edit history. Keep it private.</p>
         <button className="mt-3 w-full text-sm text-bad hover:underline" onClick={reset}>Erase all data</button>
       </Card>
 
@@ -224,7 +226,7 @@ export function Profile() {
         <p><b className="font-medium text-foreground">With your own setup:</b> the AI coach. Run <code>npm start</code> with an <code>ANTHROPIC_API_KEY</code>, then turn on AI coach above. The key stays on the server.</p>
         <p><b className="font-medium text-foreground">Needs external services:</b></p>
         <ul className="list-disc space-y-1 pl-4">
-          <li>Shared community with other athletes: a Supabase project (schema and privacy rules in <code>supabase/schema.sql</code>, not connected yet).</li>
+          <li>Shared community with other athletes: a Supabase project (schema and privacy rules in <code>supabase/</code>). Health data never goes there.</li>
           <li>Device sync for steps, sleep, heart rate and routes: the platform APIs above.</li>
           <li>Reminders while the app is closed: a push service.</li>
         </ul>
@@ -240,9 +242,27 @@ export function Profile() {
           <button className="btn-ghost mt-2 w-full !text-bad" onClick={() => runImport('replace')}>Replace my data</button>
         </div>
       </Sheet>
+      <AboutSection />
+
       <Sheet open={editProfile} onClose={() => setEditProfile(false)} title="Edit profile"><EditProfileForm onDone={() => setEditProfile(false)} /></Sheet>
       <Sheet open={editTargets} onClose={() => setEditTargets(false)} title="Edit nutrition targets"><EditTargetsForm onDone={() => setEditTargets(false)} /></Sheet>
     </div>
+  );
+}
+
+function AboutSection() {
+  return (
+    <>
+      <SectionTitle>About</SectionTitle>
+      <Card className="space-y-1 text-sm text-muted">
+        <div className="flex justify-between gap-3">
+          <span>Forge OS</span>
+          <span className="tabular-nums text-foreground">Version {__APP_VERSION__}</span>
+        </div>
+        <p>Built by Vishal Bhardwaj for hybrid athletes. Your health data stays on this device.</p>
+        <p className="text-xs">Icons by Lucide. Charts by Recharts.</p>
+      </Card>
+    </>
   );
 }
 
@@ -406,7 +426,8 @@ function AiCoachSection() {
 }
 
 function SettingsSection() {
-  const { settings, saveSettings } = useApp();
+  const { settings, saveSettings, profile } = useApp();
+  const { theme, toggle } = useTheme();
   const toast = useToast();
   const [perm, setPerm] = useState<string>(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   if (!settings) return null;
@@ -420,6 +441,14 @@ function SettingsSection() {
     await writeReminders(reminders.map((r) => (r.key === key ? { ...r, enabled: !r.enabled } : r)));
   };
   const setTime = (key: string, time: string) => writeReminders(reminders.map((r) => (r.key === key ? { ...r, time } : r)));
+  const setMealTime = (i: number, time: string) =>
+    writeReminders(reminders.map((r) => (r.key === 'meal' ? { ...r, times: (r.times ?? []).map((t, j) => (j === i ? time : t)) } : r)));
+  const tz = profile?.timezone;
+  const nextLabel = (key: string) => {
+    const at = calculateNextReminder(key, settings, { timezone: tz });
+    if (!at) return undefined;
+    return at.toLocaleString('en-GB', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  };
   const qh = settings.quietHours ?? { start: '', end: '' };
   const setQuiet = (patch: Partial<{ start: string; end: string }>) => {
     const next = { ...qh, ...patch };
@@ -437,17 +466,44 @@ function SettingsSection() {
 
   return (
     <>
+      <SectionTitle>Appearance</SectionTitle>
+      <Card className="mb-3">
+        <Segmented
+          label="Theme"
+          value={theme}
+          onChange={(v) => v !== theme && toggle()}
+          options={[
+            { value: 'dark', label: 'Dark' },
+            { value: 'light', label: 'Light' },
+          ]}
+        />
+      </Card>
       <SectionTitle>Reminders</SectionTitle>
       <Card className="mb-3">
-        {reminders.map((r) => (
-          <div key={r.key} className="flex items-center justify-between gap-2 py-2 border-b border-line last:border-0">
-            <span className="text-sm">{r.label}</span>
-            <div className="flex items-center gap-2">
-              {r.enabled && <input type="time" value={r.time ?? '08:00'} onChange={(e) => setTime(r.key, e.target.value)} className="bg-surface-2 border border-line rounded-lg px-2 py-1 text-xs" aria-label={`${r.label} time`} />}
-              <Toggle on={r.enabled} label={r.label} onClick={() => toggleReminder(r.key)} />
+        {reminders.map((r) => {
+          const next = r.enabled ? nextLabel(r.key) : undefined;
+          return (
+            <div key={r.key} className="border-b border-line py-2 last:border-0">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm">{r.label}</div>
+                  {next && <div className="text-[11px] text-muted">Next: {next}</div>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {r.enabled && r.key !== 'meal' && <input type="time" value={r.time ?? '08:00'} onChange={(e) => setTime(r.key, e.target.value)} className="bg-surface-2 border border-line rounded-lg px-2 py-1 text-xs" aria-label={`${r.label} ${r.key === 'water' ? 'start time' : 'time'}`} />}
+                  <Toggle on={r.enabled} label={r.label} onClick={() => toggleReminder(r.key)} />
+                </div>
+              </div>
+              {r.enabled && r.key === 'meal' && (
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {(r.times ?? []).map((t, i) => (
+                    <input key={i} type="time" value={t} onChange={(e) => setMealTime(i, e.target.value)} className="bg-surface-2 border border-line rounded-lg px-2 py-1 text-xs" aria-label={`${['Breakfast', 'Lunch', 'Dinner'][i] ?? 'Meal'} reminder time`} />
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
         <div className="grid grid-cols-2 gap-3 mt-3">
           <Field label="Quiet from" optional><input type="time" className="field py-2" value={qh.start} onChange={(e) => setQuiet({ start: e.target.value })} /></Field>
           <Field label="Quiet until" optional><input type="time" className="field py-2" value={qh.end} onChange={(e) => setQuiet({ end: e.target.value })} /></Field>
@@ -456,7 +512,7 @@ function SettingsSection() {
           <span className="text-muted">Notification permission: <b className="text-text">{perm}</b></span>
           <button className="link" onClick={test}>Send test</button>
         </div>
-        <InfoNote>Reminders fire while Forge OS is open (in a tab or the installed app). Browsers don't run app code when it's fully closed, so true background delivery would need a push service. "Workout" and "Missing log" reminders only fire on days with an unlogged planned session.</InfoNote>
+        <InfoNote>Reminders fire while Forge OS is open (in a tab or the installed app). Browsers don't run app code when it's fully closed, so true background delivery would need a push service. "Workout" and "Missing log" reminders only fire on days with an unlogged planned session. Water repeats every 2 hours from its start time until an hour before bedtime.</InfoNote>
       </Card>
       <AiCoachSection />
       <SectionTitle>Water serving size</SectionTitle>

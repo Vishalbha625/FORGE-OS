@@ -345,6 +345,8 @@ export interface Reminder {
   key: string;
   label: string;
   time?: string; // HH:MM
+  /** Several times a day (meals). Optional: added in Phase 7, older settings fall back to defaults. */
+  times?: string[];
   enabled: boolean;
 }
 

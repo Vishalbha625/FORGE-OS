@@ -7,6 +7,7 @@ import { AppHeader } from '../../components/Layout';
 import { Card, StatTile, StatusPill, Ring, Bar, SectionTitle, InfoNote, Highlight } from '../../components/ui';
 import { LOG_ICONS } from '../../components/icons';
 import { computeDayStatus, generateWeeklyReport } from '../../lib/coach';
+import { dashboardStatus, weeklyReview } from '../../lib/analytics';
 import { fmtDate, daysBetween, relativeDay } from '../../lib/dates';
 import { fmtPace, fmtDuration, round0, fmtHrsMins } from '../../lib/calc';
 import type { PlannedWorkout } from '../../db/types';
@@ -32,8 +33,12 @@ export function Dashboard() {
   const nav = useNavigate();
 
   const plan = useMemo(() => data.plannedWorkouts.find((w) => w.eventDate === today), [data.plannedWorkouts, today]);
+  // The badge: recovery first, then missed sessions. computeDayStatus still
+  // drives the "not logged yet" note below.
+  const badge = useMemo(() => dashboardStatus(snapshot), [snapshot]);
   const status = useMemo(() => computeDayStatus(snapshot), [snapshot]);
   const report = useMemo(() => generateWeeklyReport(snapshot), [snapshot]);
+  const week = useMemo(() => weeklyReview(snapshot), [snapshot]);
 
   if (!profile) return null;
 
@@ -74,8 +79,8 @@ export function Dashboard() {
       <Card className="mb-2">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <StatusPill status={status.status} />
-            <p className="mt-2 text-sm text-muted">{status.reasons[0]}</p>
+            <StatusPill status={badge.status} />
+            <p className="mt-2 text-sm text-muted">{badge.reason}</p>
           </div>
           <div className="shrink-0 text-right">
             <div className="font-montserrat text-4xl font-semibold tabular-nums tracking-tight">{daysToRace >= 0 ? daysToRace : '–'}</div>
@@ -88,10 +93,13 @@ export function Dashboard() {
       </Card>
 
       <SectionTitle action={<SectionLink to="/training">Calendar</SectionLink>}>Today's plan</SectionTitle>
-      {plan ? (
+      {plan && !plan.types.includes('rest') ? (
         <TodayPlanCard plan={plan} completed={completedToday} onStart={(kind) => log(kind, plan)} />
       ) : (
-        <Card className="text-sm text-muted">No session planned for today. Rest, or log any activity with the + button.</Card>
+        <Card>
+          <h3 className="font-montserrat text-base font-semibold">Rest day</h3>
+          <p className="mt-0.5 text-sm text-muted">{plan ? plan.focus : 'Nothing is planned today.'} Recover, or log any activity with the + button.</p>
+        </Card>
       )}
 
       {completedToday > 0 && (
@@ -112,6 +120,18 @@ export function Dashboard() {
           </ul>
         </Card>
       )}
+
+      <SectionTitle>This week</SectionTitle>
+      <div className="grid grid-cols-2 gap-3">
+        <StatTile label="Distance" value={`${week.km} km`} sub={week.plannedKmToDate !== undefined ? `plan ${week.plannedKmToDate} km so far` : 'run this week'} />
+        <StatTile label="Strength" value={week.strengthSessions} sub={week.strengthSessions === 1 ? 'session' : 'sessions'} />
+        <StatTile label="Sleep" value={week.avgSleepHours === undefined ? '–' : fmtHrsMins(Math.round(week.avgSleepHours * 60))} sub="nightly average" />
+        <StatTile label="Calories" value={week.avgCalories === undefined ? '–' : week.avgCalories.toLocaleString('en-GB')} sub="daily average" />
+      </div>
+      <div className="mt-3 flex justify-center gap-x-5">
+        <SectionLink to="/analytics">View analytics</SectionLink>
+        <SectionLink to="/coach">Ask coach</SectionLink>
+      </div>
 
       <SectionTitle>Today</SectionTitle>
       <div className="grid grid-cols-2 gap-3">

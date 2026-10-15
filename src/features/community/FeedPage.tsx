@@ -8,6 +8,7 @@ import { PostCard } from './PostCard';
 import { CreatePostSheet } from './CreatePostSheet';
 import { EditPostSheet } from './EditPostSheet';
 import { Avatar, myDisplayName } from './shared';
+import { SkeletonPost } from '../../components/Skeleton';
 
 export function FeedPage() {
   const { user } = useAuth();
@@ -61,9 +62,9 @@ export function FeedPage() {
         </p>
       )}
 
-      {feed.loading ? (
+      {feed.loading && feed.posts.length === 0 ? (
         <div className="space-y-3" role="status" aria-label="Loading the feed">
-          {[0, 1, 2].map((i) => <div key={i} className="card h-40 motion-safe:animate-pulse" />)}
+          {[0, 1, 2].map((i) => <SkeletonPost key={i} />)}
         </div>
       ) : feed.error && feed.posts.length === 0 ? (
         <div className="py-12 text-center">

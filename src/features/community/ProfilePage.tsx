@@ -14,6 +14,7 @@ import { EditPostSheet } from './EditPostSheet';
 import { EditProfileSheet } from './EditProfileSheet';
 import { BlockReportSheet, type BlockReportMode } from './BlockReportSheet';
 import { Avatar } from './shared';
+import { SkeletonAvatar, SkeletonLine, SkeletonPost } from '../../components/Skeleton';
 
 interface Counts { posts?: number; followers?: number; following?: number }
 
@@ -138,7 +139,24 @@ export function ProfilePage() {
     </Link>
   );
 
-  if (state === 'loading') return <div>{back}<div className="card h-48 motion-safe:animate-pulse" role="status" aria-label="Loading profile" /></div>;
+  if (state === 'loading') {
+    return (
+      <div>
+        {back}
+        <div className="space-y-4" role="status" aria-label="Loading profile">
+          <div className="flex items-center gap-4">
+            <SkeletonAvatar size="lg" />
+            <div className="flex-1 space-y-2">
+              <SkeletonLine width="w-1/2" />
+              <SkeletonLine width="w-1/3" />
+            </div>
+          </div>
+          <SkeletonLine width="w-3/4" />
+          <SkeletonPost />
+        </div>
+      </div>
+    );
+  }
   if (state !== 'ready' || !profile) {
     return (
       <div>

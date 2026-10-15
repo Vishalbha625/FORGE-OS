@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './store/AppContext';
 import { ToastProvider } from './store/toast';
@@ -9,13 +9,16 @@ import { ConfirmProvider } from './store/confirm';
 import { AuthProvider, useAuth } from './store/AuthContext';
 import { getDB } from './db/database';
 import { AuthGuard } from './features/auth/AuthGuard';
-import { Onboarding } from './features/onboarding/Onboarding';
-import { Dashboard } from './features/dashboard/Dashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { PageTransition } from './components/PageTransition';
+import { SkeletonCard, SkeletonChart, SkeletonLine, SkeletonPost } from './components/Skeleton';
 
-// Home and onboarding load eagerly; the rest are split into their own chunks.
+// Every page is split into its own chunk, loaded on first visit.
 const page = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) =>
   lazy(() => load().then((m) => ({ default: m[name] })));
 
+const Onboarding = page(() => import('./features/onboarding/Onboarding'), 'Onboarding');
+const Dashboard = page(() => import('./features/dashboard/Dashboard'), 'Dashboard');
 const Training = page(() => import('./features/training/Training'), 'Training');
 const Nutrition = page(() => import('./features/nutrition/Nutrition'), 'Nutrition');
 const FeedPage = page(() => import('./features/community/FeedPage'), 'FeedPage');
@@ -26,7 +29,7 @@ const FollowersListPage = page(() => import('./features/community/FollowersListP
 const BlockedUsersPage = page(() => import('./features/community/BlockedUsersPage'), 'BlockedUsersPage');
 const Profile = page(() => import('./features/profile/Profile'), 'Profile');
 const Coach = page(() => import('./features/coach/CoachPage'), 'CoachPage');
-const Analytics = page(() => import('./features/analytics/Analytics'), 'Analytics');
+const AnalyticsPage = page(() => import('./features/analytics/AnalyticsPage'), 'AnalyticsPage');
 const Sleep = page(() => import('./features/health/Sleep'), 'Sleep');
 const Steps = page(() => import('./features/health/Steps'), 'Steps');
 const Body = page(() => import('./features/health/Body'), 'Body');
@@ -37,9 +40,43 @@ const SignUpPage = page(() => import('./features/auth/SignUpPage'), 'SignUpPage'
 const ForgotPasswordPage = page(() => import('./features/auth/ForgotPasswordPage'), 'ForgotPasswordPage');
 const AuthCallbackPage = page(() => import('./features/auth/AuthCallbackPage'), 'AuthCallbackPage');
 const ResetPasswordPage = page(() => import('./features/auth/ResetPasswordPage'), 'ResetPasswordPage');
+const NotFoundPage = page(() => import('./features/notfound/NotFoundPage'), 'NotFoundPage');
 
-function PageLoading() {
-  return <div className="py-16 text-center text-muted text-sm animate-pulse">Loading…</div>;
+type Shape = 'page' | 'charts' | 'feed';
+
+/** A placeholder in the shape of the page that's loading. */
+function PageLoading({ shape = 'page' }: { shape?: Shape }) {
+  return (
+    <div className="space-y-3 pt-6" role="status" aria-label="Loading">
+      <SkeletonLine width="w-1/3" className="mx-auto mb-6" />
+      {shape === 'charts' ? (
+        <>
+          <SkeletonCard />
+          <SkeletonChart />
+          <SkeletonChart />
+        </>
+      ) : shape === 'feed' ? (
+        <>
+          <SkeletonPost />
+          <SkeletonPost />
+        </>
+      ) : (
+        <>
+          <SkeletonCard />
+          <SkeletonCard />
+        </>
+      )}
+    </div>
+  );
+}
+
+/** One crash boundary and one loading state per app section. */
+function Section({ name, shape, children }: { name: string; shape?: Shape; children: ReactNode }) {
+  return (
+    <ErrorBoundary section={name}>
+      <Suspense fallback={<PageLoading shape={shape} />}>{children}</Suspense>
+    </ErrorBoundary>
+  );
 }
 
 function Gate() {
@@ -54,7 +91,11 @@ function Gate() {
   }
 
   if (!profile || !profile.onboarded) {
-    return <Onboarding />;
+    return (
+      <Section name="onboarding">
+        <Onboarding />
+      </Section>
+    );
   }
 
   // Sign-in pages are full screen. Only community routes require an account:
@@ -74,33 +115,39 @@ function Gate() {
 }
 
 function MainApp() {
+  const community = (el: ReactNode) => (
+    <Section name="community" shape="feed">
+      <AuthGuard>{el}</AuthGuard>
+    </Section>
+  );
+  const health = (el: ReactNode) => <Section name="health">{el}</Section>;
   return (
     <LogProvider>
       <Layout>
-        <Suspense fallback={<PageLoading />}>
+        <PageTransition>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/training" element={<Training />} />
-            <Route path="/nutrition" element={<Nutrition />} />
-            <Route path="/community" element={<AuthGuard><FeedPage /></AuthGuard>} />
-            <Route path="/community/post/:postId" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
-            <Route path="/community/search" element={<AuthGuard><SearchUsersPage /></AuthGuard>} />
-            <Route path="/community/blocked" element={<AuthGuard><BlockedUsersPage /></AuthGuard>} />
-            <Route path="/community/profile/:userId" element={<AuthGuard><ProfilePage /></AuthGuard>} />
-            <Route path="/community/profile/:userId/followers" element={<AuthGuard><FollowersListPage /></AuthGuard>} />
-            <Route path="/community/profile/:userId/following" element={<AuthGuard><FollowersListPage /></AuthGuard>} />
+            <Route path="/" element={<Section name="dashboard"><Dashboard /></Section>} />
+            <Route path="/training" element={<Section name="training"><Training /></Section>} />
+            <Route path="/nutrition" element={<Section name="nutrition"><Nutrition /></Section>} />
+            <Route path="/community" element={community(<FeedPage />)} />
+            <Route path="/community/post/:postId" element={community(<PostDetailPage />)} />
+            <Route path="/community/search" element={community(<SearchUsersPage />)} />
+            <Route path="/community/blocked" element={community(<BlockedUsersPage />)} />
+            <Route path="/community/profile/:userId" element={community(<ProfilePage />)} />
+            <Route path="/community/profile/:userId/followers" element={community(<FollowersListPage />)} />
+            <Route path="/community/profile/:userId/following" element={community(<FollowersListPage />)} />
             <Route path="/community/*" element={<Navigate to="/community" replace />} />
-            <Route path="/profile" element={<Profile />} />
-            <Route path="/coach" element={<Coach />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/sleep" element={<Sleep />} />
-            <Route path="/steps" element={<Steps />} />
-            <Route path="/body" element={<Body />} />
-            <Route path="/recovery" element={<Recovery />} />
-            <Route path="/hydration" element={<Hydration />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="/profile" element={<Section name="settings"><Profile /></Section>} />
+            <Route path="/coach" element={<Section name="coach"><Coach /></Section>} />
+            <Route path="/analytics" element={<Section name="analytics" shape="charts"><AnalyticsPage /></Section>} />
+            <Route path="/sleep" element={health(<Sleep />)} />
+            <Route path="/steps" element={health(<Steps />)} />
+            <Route path="/body" element={health(<Body />)} />
+            <Route path="/recovery" element={health(<Recovery />)} />
+            <Route path="/hydration" element={health(<Hydration />)} />
+            <Route path="*" element={<Section name="not found"><NotFoundPage /></Section>} />
           </Routes>
-        </Suspense>
+        </PageTransition>
       </Layout>
     </LogProvider>
   );

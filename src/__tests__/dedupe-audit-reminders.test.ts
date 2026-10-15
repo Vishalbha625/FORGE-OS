@@ -51,7 +51,7 @@ describe('reminders', () => {
     expect(dueReminders(on('meal'), ctx({ firedToday: () => true }))).toEqual([]);
   });
   it('does not fire before its time or during quiet hours', () => {
-    expect(dueReminders(on('meal', '21:30'), ctx())).toEqual([]);
+    expect(dueReminders(on('bedtime', '21:30'), ctx())).toEqual([]);
     expect(dueReminders(on('meal'), ctx({ quietHours: { start: '20:30', end: '06:00' } }))).toEqual([]);
   });
   it('"missing log" only fires when a planned session is unlogged', () => {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flag, Heart, MessageCircle, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { deletePost, toggleKudos, type CommunityPost } from '../../lib/communityService';
@@ -24,7 +24,8 @@ interface PostCardProps {
 
 const LONG_CAPTION = 180;
 
-export function PostCard({ post, currentUserId, onChange, onRemove, onEdit, expanded = false }: PostCardProps) {
+/** Memoized: a feed poll that returns the same post objects doesn't re-render every card. */
+export const PostCard = memo(function PostCard({ post, currentUserId, onChange, onRemove, onEdit, expanded = false }: PostCardProps) {
   const toast = useToast();
   const confirm = useConfirm();
   const kudosKey = `kudos-${post.id}`;
@@ -189,4 +190,4 @@ export function PostCard({ post, currentUserId, onChange, onRemove, onEdit, expa
       )}
     </article>
   );
-}
+});

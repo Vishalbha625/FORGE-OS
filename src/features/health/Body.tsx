@@ -63,7 +63,7 @@ export function Body() {
           <div className="grid grid-cols-3 gap-2 mb-1">
             {photos.slice(0, 12).map((r) => (
               <button key={r.id} onClick={() => setViewPhoto({ src: r.photo!, date: r.eventDate })} className="relative aspect-[3/4] rounded-xl overflow-hidden border border-line">
-                <img src={r.photo} className="w-full h-full object-cover" alt={`Progress photo ${r.eventDate}`} />
+                <img loading="lazy" decoding="async" src={r.photo} className="w-full h-full object-cover" alt={`Progress photo ${r.eventDate}`} />
                 <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[10px] py-0.5 text-center">{fmtDate(r.eventDate, { year: undefined })}</span>
               </button>
             ))}
@@ -103,7 +103,7 @@ export function Body() {
       )}
       <div className="h-6" />
       <Sheet open={!!viewPhoto} onClose={() => setViewPhoto(null)} title={viewPhoto ? fmtDate(viewPhoto.date) : ''}>
-        {viewPhoto && <img src={viewPhoto.src} className="w-full rounded-xl" alt={`Progress photo ${viewPhoto.date}`} />}
+        {viewPhoto && <img loading="lazy" decoding="async" src={viewPhoto.src} className="w-full rounded-xl" alt={`Progress photo ${viewPhoto.date}`} />}
       </Sheet>
     </div>
   );

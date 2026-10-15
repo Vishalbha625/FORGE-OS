@@ -21,7 +21,7 @@ npm start         # build + run everything on http://localhost:8787 (app + AI co
 # or, while developing:
 npm run dev       # hot-reload UI at http://localhost:5173
 npm run server    # (second terminal) coach API on :8787 — the dev UI proxies /api to it
-npm test          # unit tests (39) — calculations, plan, coach honesty, dedupe, audit, reminders, backup import
+npm test          # unit tests (152): calculations, plan, coach, analytics, reminders, community services, components
 ```
 
 Requirements: Node 18+ (built & tested on Node 22).
@@ -132,7 +132,7 @@ Destructive actions use a ChaiUI confirm dialog that focuses the safe choice fir
 | Area | Highlights |
 |---|---|
 | **Onboarding** | 6-step wizard (basics, goals, training, nutrition, lifestyle, devices) with a progress bar. Pre-fills your previously reported values **as drafts to confirm** — never assumed current, nothing fabricated. |
-| **Dashboard** | Daily command center: training phase/week, race countdown, transparent daily status (On track / Needs attention / Recovery recommended / Missing data), today's plan, metrics (steps, sleep, water, calories, protein, weight), top-3 priorities, one-tap quick log. |
+| **Dashboard** | Daily command center: training phase/week, race countdown, a status badge (Recovery recommended when the latest check-in shows high fatigue or soreness or sleep has averaged under 6 h for 7 days; Needs attention when 2 or more planned sessions were missed this week; otherwise On track), today's plan or rest day, this week's distance, strength sessions, average sleep and calories, links to analytics and the coach, top-3 priorities, one-tap quick log. |
 | **Training planner** | Full **15-week calendar** from your start date (12 Oct 2026) through race day (24 Jan 2027). Periodized Base → Build → Specific → Taper with deload weeks, your exact preferred weekly split, warm-up/cool-down, exercise cues, RPE targets, reschedule & remove with confirmation. Planned and actual data are **kept separate**. |
 | **Running** | Progression from your 30–40 km base, weekly target vs planned-sum **validation**, pace auto-calculated, weekly mileage, trends. |
 | **Strength** | Log sets (reps/kg/RPE), previous performance shown inline, PRs, volume, muscle-group distribution. No arbitrary kg prescribed — progression uses *your* logged data + effort. |
@@ -141,7 +141,8 @@ Destructive actions use a ChaiUI confirm dialog that focuses the safe choice fir
 | **Health** | Sleep (correct duration **across midnight**, 7-day avg, quality), steps (manual, source-labelled, de-duplicated per day), body metrics & weight trend (body-fat only if *you* measure it), recovery (fatigue/soreness/motivation/stress). |
 | **AI Athlete Coach** | A dedicated, data-backed conversational coach. Answers from your real logs, **tags each answer** (fact / calculation / estimate / suggestion / missing), cites dates, and **acknowledges missing data instead of inventing it**. Rule-based — works with no API key. |
 | **Community** | Local-first social feed: posts with privacy controls (private / followers / public), kudos, comments, edit/delete, PR badges, weekly recap cards, search. Nothing is shared automatically; health data & routes stay private by default. |
-| **Progress analytics** | Running, strength, nutrition, recovery and HYROX charts + an on-demand weekly report. Shows *"Not enough data yet"* rather than inventing stats. |
+| **Progress analytics** | A weekly review (week X of 15, distance against the plan so far with an On track / Needs attention / Behind badge, sets, calories, sleep, readiness) and six charts for this week, this month or the last 4 weeks: running (daily km, total so far vs plan), strength sets per muscle group, HYROX station times, macro calories vs target, recovery check-ins with a 7-day trend, and sleep with a 7-day average and the 7 to 8 h band. Every chart has a table view and a colour-blind-safe palette in both themes. All computed on the device; days with nothing logged stay empty, never zero. |
+| **Reminders** | While the app is open: workout, meals (3 a day), water every 2 hours while awake, bedtime, a Monday weigh-in, the Sunday weekly review, race countdown and missing logs. Each has its own switch and time, respects quiet hours, and shows its next time in Profile. |
 | **Data** | IndexedDB persistence; every record has id, event date, created/updated timestamps, source & units. Backdated & multiple-same-day entries, edit/delete with confirm, **export / import / backup** (merge keeps newer records, never silently duplicates). Times shown in Asia/Kolkata. |
 
 ---
@@ -191,9 +192,9 @@ See **Profile → Setup notes & limitations** inside the app for the same summar
 ```
 src/
   db/            types.ts (full data model) · database.ts (IndexedDB CRUD, export/import)
-  lib/           dates.ts · calc.ts · plan.ts (plan generator) · coach.ts (rule-based coach) · constants.ts
+  lib/           dates.ts · calc.ts · plan.ts (plan generator) · coach.ts (rule-based coach) · analytics.ts · reminders.ts · constants.ts
   store/         AppContext.tsx (in-memory store + persistence) · toast.tsx
-  components/    ui.tsx · charts.tsx · Layout.tsx (nav + quick-action FAB)
+  components/    ui.tsx · charts.tsx · Layout.tsx (nav + quick-action FAB) · ErrorBoundary.tsx · Skeleton.tsx · PageTransition.tsx
   features/      onboarding · dashboard · training · nutrition · community · profile ·
                  coach · analytics · health (sleep/steps/body/recovery/hydration) · logging
 ```

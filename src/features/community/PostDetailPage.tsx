@@ -14,6 +14,7 @@ import { getRelativeTime } from '../../lib/relativeTime';
 import { PostCard } from './PostCard';
 import { EditPostSheet } from './EditPostSheet';
 import { Avatar, isOffline, myDisplayName } from './shared';
+import { SkeletonCard, SkeletonLine, SkeletonPost } from '../../components/Skeleton';
 
 type CommentState = 'sending' | 'queued';
 interface ShownComment extends CommunityComment {
@@ -166,7 +167,16 @@ export function PostDetailPage() {
   );
 
   if (postState === 'loading') {
-    return <div>{back}<div className="card h-56 motion-safe:animate-pulse" role="status" aria-label="Loading the post" /></div>;
+    return (
+      <div>
+        {back}
+        <div className="space-y-3" role="status" aria-label="Loading the post">
+          <SkeletonPost />
+          <SkeletonLine width="w-1/3" />
+          <SkeletonCard />
+        </div>
+      </div>
+    );
   }
   if (postState === 'missing' || (postState === 'error' && !post)) {
     return (
