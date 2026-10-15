@@ -87,7 +87,8 @@ falls back to the rule-based coach if the request fails.
 Health features never need an account. Only `/community` asks you to sign in. Signing out ends the
 community session and never deletes anything on the device.
 
-1. Create a Supabase project and run `supabase/schema.sql` and `supabase/storage.sql` in its SQL editor.
+1. Create a Supabase project and run `supabase/schema.sql`, `supabase/storage.sql` and `supabase/photos.sql`
+   (in that order) in its SQL editor.
 2. Vercel environment: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Supabase → Project settings →
    API; the anon key is public by design, RLS enforces access). Redeploy: Vite bakes these in at build time.
 3. Supabase → Authentication → URL configuration: Site URL `https://forge-os-black.vercel.app`, and add
@@ -97,6 +98,10 @@ community session and never deletes anything on the device.
    authorised redirect URI is `https://<project>.supabase.co/auth/v1/callback`.
 
 Sign-in uses PKCE, so confirmation and reset links must be opened in the same browser that asked for them.
+
+Database checks: `bash supabase/tests/run.sh` runs the row-level security tests on a throwaway Postgres.
+`bash supabase/tests/api.sh` runs the community service against a real PostgREST 12 over the same schema
+(set `POSTGREST=/path/to/postgrest` if it isn't on your PATH).
 
 ### Install on your phone (PWA)
 

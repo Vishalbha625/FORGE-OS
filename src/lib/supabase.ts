@@ -37,6 +37,10 @@ export function getSupabase(): SupabaseClient | null {
         detectSessionInUrl: true,
       },
       global: { headers: { 'x-client-info': 'forge-os-pwa/1.0' } },
+      // One retry policy, ours (retry.ts + circuitBreaker.ts): the built-in one
+      // would retry reads for ~7 s before the feed could fall back to its cache.
+      // The timeout stops a stalled connection from hanging a request forever.
+      db: { retry: false, timeout: 15_000 },
     });
   } catch (err) {
     // A malformed URL must not take the app down.

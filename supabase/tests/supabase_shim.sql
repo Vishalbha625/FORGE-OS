@@ -6,15 +6,21 @@ do $$ begin create role authenticated nologin; exception when duplicate_object t
 
 create schema if not exists auth;
 create table if not exists auth.users (id uuid primary key, email text);
--- Supabase's auth.uid(): the `sub` claim of the caller's JWT.
+-- Supabase's auth.uid(): the `sub` claim of the caller's JWT. Same definition
+-- as Supabase: the legacy per-claim setting (used by rls_test.sql) or the JSON
+-- claims PostgREST sends.
 create or replace function auth.uid() returns uuid language sql stable as $$
-  select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+  select coalesce(
+    nullif(current_setting('request.jwt.claim.sub', true), ''),
+    (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')
+  )::uuid
 $$;
 grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
 
 create schema if not exists storage;
-create table if not exists storage.buckets (id text primary key, name text not null, public boolean default false);
+create table if not exists storage.buckets (id text primary key, name text not null, public boolean default false,
+  file_size_limit bigint, allowed_mime_types text[]);
 create table if not exists storage.objects (
   id uuid primary key default gen_random_uuid(),
   bucket_id text references storage.buckets (id),

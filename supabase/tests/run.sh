@@ -15,7 +15,7 @@ command -v initdb >/dev/null || { echo "Postgres server binaries not found (init
 
 tmp="$(mktemp -d)"
 port="${PGTEST_PORT:-54329}"
-cleanup() { pg_ctl -D "$tmp/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "$tmp"; }
+cleanup() { run "pg_ctl -D '$tmp/data' -m immediate stop" >/dev/null 2>&1 || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 
 # Postgres refuses to run as root; use the postgres user if we are root.
@@ -29,4 +29,5 @@ psql_run() { run "psql -h '$tmp' -p $port -U postgres -d postgres -v ON_ERROR_ST
 psql_run "-f '$here/supabase_shim.sql'" >/dev/null
 psql_run "-f '$root/schema.sql'" >/dev/null
 psql_run "-f '$root/storage.sql'" >/dev/null
+psql_run "-f '$root/photos.sql'" >/dev/null
 psql_run "-f '$here/rls_test.sql'"

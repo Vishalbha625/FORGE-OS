@@ -141,5 +141,44 @@ update public.posts set created_at = '2000-01-01' where visibility = 'public';
 do $$ begin assert (select created_at > '2020-01-01' from public.posts where visibility = 'public'), 'created_at was rewritten'; end $$;
 commit;
 
+-- ── photos.sql ────────────────────────────────────────────────────────────────
+\set dave    '44444444-4444-4444-4444-444444444444'
+\set pubpost '55555555-5555-5555-5555-555555555555'
+\set pripost '66666666-6666-6666-6666-666666666666'
+insert into auth.users (id, email) values (:'dave', 'd@x');
+insert into public.profiles (id, display_name) values (:'dave', 'Dave');
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'alice', true) \gset
+insert into public.posts (id, author_id, event_date, title, activity_type, visibility, photo_path) values
+  (:'pubpost', :'alice', '2026-10-15', 'Public sled push', 'HYROX', 'public', :'alice' || '/' || :'pubpost'),
+  (:'pripost', :'alice', '2026-10-15', 'Private weigh-in', 'Other', 'private', :'alice' || '/' || :'pripost');
+insert into storage.objects (bucket_id, name) values
+  ('post-photos', :'alice' || '/' || :'pubpost' || '/thumb.webp'),
+  ('post-photos', :'alice' || '/' || :'pubpost' || '/full.webp'),
+  ('post-photos', :'alice' || '/' || :'pripost' || '/thumb.webp');
+commit;
+
+\echo '14. thumb and full of a visible post are readable; a private post''s are not'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'dave', true) \gset
+do $$ begin assert (select count(*) from storage.objects where name like '%/55555555-5555-5555-5555-555555555555/%') = 2, 'stranger should read both variants of a public post photo'; end $$;
+do $$ begin assert (select count(*) from storage.objects where name like '%/66666666-6666-6666-6666-666666666666/%') = 0, 'stranger read a private post photo'; end $$;
+commit;
+
+\echo '15. photo_path cannot point outside the author''s own folder'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'dave', true) \gset
+do $$ begin
+  insert into public.posts (author_id, event_date, title, activity_type, visibility, photo_path) values
+    ('44444444-4444-4444-4444-444444444444', '2026-10-15', 'Borrowed photo', 'Run', 'public',
+     '11111111-1111-1111-1111-111111111111/66666666-6666-6666-6666-666666666666');
+  raise exception 'FAIL: dave pointed his post at alice''s private photo';
+exception when check_violation then null; end $$;
+do $$ begin assert (select count(*) from storage.objects where name like '%/66666666-6666-6666-6666-666666666666/%') = 0, 'private photo leaked through another post'; end $$;
+commit;
+
+\echo '16. the photo bucket only takes small WebP or JPEG files'
+do $$ begin
+  assert (select file_size_limit from storage.buckets where id = 'post-photos') = 262144, 'size cap missing';
+  assert (select allowed_mime_types from storage.buckets where id = 'post-photos') = array['image/webp', 'image/jpeg'], 'type allow-list missing';
+end $$;
+
 \echo ''
 \echo 'ALL RLS TESTS PASSED'
