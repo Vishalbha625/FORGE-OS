@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../store/AuthContext';
 import { getDB } from '../db/database';
 import { fetchFeed, type CommunityPost } from '../lib/communityService';
-import { getCachedFeed, getCacheMeta, mergeFeedUpdate, setCachedFeed } from '../lib/feedCache';
+import { QUEUE_SYNCED_EVENT } from '../lib/offlineQueueProcessor';
+import { getCachedFeed, getCacheMeta, mergeFeedUpdate, removeFromCache, setCachedFeed } from '../lib/feedCache';
 
 // Stale-while-revalidate feed: show the cached feed at once, fetch fresh in the
 // background, poll every 60 s while the app is focused and online. No realtime
@@ -21,8 +22,14 @@ export interface FeedState {
   error: string | null;
   hasMore: boolean;
   isOffline: boolean;
+  /** A next page is being fetched. */
+  loadingMore: boolean;
   refresh: () => Promise<void>;
   loadMore: () => Promise<void>;
+  /** Show a new or changed post now (and cache it): new posts go on top. */
+  upsertPost: (post: CommunityPost) => void;
+  /** Drop a post from the screen and the cache. */
+  removePost: (postId: string) => void;
 }
 
 export function useFeed(pageSize = 20): FeedState {
@@ -34,12 +41,13 @@ export function useFeed(pageSize = 20): FeedState {
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [isOffline, setIsOffline] = useState(!isOnline());
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const mounted = useRef(true);
   const postsRef = useRef<CommunityPost[]>([]);
   const cursor = useRef<string | null>(null);
   const generation = useRef(0); // bumps on refresh, so late load-more results are dropped
-  const loadingMore = useRef(false);
+  const fetchingMore = useRef(false);
 
   const show = (next: CommunityPost[]) => {
     postsRef.current = next;
@@ -78,8 +86,9 @@ export function useFeed(pageSize = 20): FeedState {
   }, [userId, pageSize]);
 
   const loadMore = useCallback(async () => {
-    if (!userId || !cursor.current || loadingMore.current || !isOnline()) return;
-    loadingMore.current = true;
+    if (!userId || !cursor.current || fetchingMore.current || !isOnline()) return;
+    fetchingMore.current = true;
+    setLoadingMore(true);
     const gen = generation.current;
     try {
       const res = await fetchFeed(userId, cursor.current, pageSize);
@@ -91,9 +100,22 @@ export function useFeed(pageSize = 20): FeedState {
       setHasMore(page.hasMore);
       await mergeFeedUpdate(await getDB(), page.data, page.nextCursor).catch((err) => console.warn('Could not cache the feed.', err));
     } finally {
-      loadingMore.current = false;
+      fetchingMore.current = false;
+      if (mounted.current) setLoadingMore(false);
     }
   }, [userId, pageSize]);
+
+  const upsertPost = useCallback((post: CommunityPost) => {
+    const exists = postsRef.current.some((p) => p.id === post.id);
+    show(exists ? postsRef.current.map((p) => (p.id === post.id ? post : p)) : [post, ...postsRef.current]);
+    setError(null);
+    getDB().then((db) => mergeFeedUpdate(db, [post])).catch((err) => console.warn('Could not cache the post.', err));
+  }, []);
+
+  const removePost = useCallback((postId: string) => {
+    show(postsRef.current.filter((p) => p.id !== postId));
+    getDB().then((db) => removeFromCache(db, postId)).catch((err) => console.warn('Could not update the cached feed.', err));
+  }, []);
 
   // Mount (and account change): cached feed first, then fresh.
   useEffect(() => {
@@ -146,14 +168,17 @@ export function useFeed(pageSize = 20): FeedState {
       void refresh();
     };
     const onOffline = () => setIsOffline(true);
+    const onSynced = () => void refresh();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
+    window.addEventListener(QUEUE_SYNCED_EVENT, onSynced);
     return () => {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
+      window.removeEventListener(QUEUE_SYNCED_EVENT, onSynced);
     };
   }, [userId, refresh]);
 
@@ -161,5 +186,5 @@ export function useFeed(pageSize = 20): FeedState {
     mounted.current = false;
   }, []);
 
-  return { posts, loading, refreshing, error, hasMore, isOffline, refresh, loadMore };
+  return { posts, loading, refreshing, error, hasMore, isOffline, loadingMore, refresh, loadMore, upsertPost, removePost };
 }

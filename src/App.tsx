@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './store/AppContext';
 import { ToastProvider } from './store/toast';
@@ -6,7 +6,8 @@ import { LogProvider } from './features/logging/QuickLog';
 import { Layout, Logo } from './components/Layout';
 import { ThemeProvider } from './store/theme';
 import { ConfirmProvider } from './store/confirm';
-import { AuthProvider } from './store/AuthContext';
+import { AuthProvider, useAuth } from './store/AuthContext';
+import { getDB } from './db/database';
 import { AuthGuard } from './features/auth/AuthGuard';
 import { Onboarding } from './features/onboarding/Onboarding';
 import { Dashboard } from './features/dashboard/Dashboard';
@@ -17,7 +18,10 @@ const page = <K extends string>(load: () => Promise<Record<K, React.ComponentTyp
 
 const Training = page(() => import('./features/training/Training'), 'Training');
 const Nutrition = page(() => import('./features/nutrition/Nutrition'), 'Nutrition');
-const Community = page(() => import('./features/community/Community'), 'Community');
+const FeedPage = page(() => import('./features/community/FeedPage'), 'FeedPage');
+const PostDetailPage = page(() => import('./features/community/PostDetailPage'), 'PostDetailPage');
+const CommunitySearch = lazy(() => import('./features/community/shared').then((m) => ({ default: () => <m.ComingSoon title="Search the community" /> })));
+const CommunityProfile = lazy(() => import('./features/community/shared').then((m) => ({ default: () => <m.ComingSoon title="Athlete profile" /> })));
 const Profile = page(() => import('./features/profile/Profile'), 'Profile');
 const Coach = page(() => import('./features/coach/Coach'), 'Coach');
 const Analytics = page(() => import('./features/analytics/Analytics'), 'Analytics');
@@ -76,7 +80,11 @@ function MainApp() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/training" element={<Training />} />
             <Route path="/nutrition" element={<Nutrition />} />
-            <Route path="/community/*" element={<AuthGuard><Community /></AuthGuard>} />
+            <Route path="/community" element={<AuthGuard><FeedPage /></AuthGuard>} />
+            <Route path="/community/post/:postId" element={<AuthGuard><PostDetailPage /></AuthGuard>} />
+            <Route path="/community/search" element={<AuthGuard><CommunitySearch /></AuthGuard>} />
+            <Route path="/community/profile/:userId" element={<AuthGuard><CommunityProfile /></AuthGuard>} />
+            <Route path="/community/*" element={<Navigate to="/community" replace />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/coach" element={<Coach />} />
             <Route path="/analytics" element={<Analytics />} />
@@ -93,9 +101,33 @@ function MainApp() {
   );
 }
 
+/**
+ * Sends community writes queued while offline, now and whenever the
+ * connection returns. Loaded lazily, and only once someone is signed in.
+ */
+function OfflineQueueRunner() {
+  const { isAuthenticated } = useAuth();
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+    Promise.all([getDB(), import('./lib/offlineQueueProcessor')])
+      .then(([db, { setupOfflineQueueListener }]) => {
+        if (!cancelled) cleanup = setupOfflineQueueListener(db);
+      })
+      .catch((err) => console.warn('Offline queue not started.', err));
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, [isAuthenticated]);
+  return null;
+}
+
 export default function App() {
   return (
     <AuthProvider>
+      <OfflineQueueRunner />
       <ThemeProvider>
         <AppProvider>
           <ToastProvider>

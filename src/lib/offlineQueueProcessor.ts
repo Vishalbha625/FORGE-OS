@@ -25,6 +25,9 @@ export interface QueuePayloads {
 }
 export type QueueOperation = keyof QueuePayloads;
 
+/** Fired on window after queued writes were sent, so open screens can refresh. */
+export const QUEUE_SYNCED_EVENT = 'forge:queue-synced';
+
 type Handler<K extends QueueOperation> = (payload: QueuePayloads[K]) => Promise<ServiceResult<unknown>>;
 
 const handlers: { [K in QueueOperation]: Handler<K> } = {
@@ -98,7 +101,12 @@ export async function processOfflineQueue(db: IDBPDatabase, userId?: string): Pr
 /** Replays the queue now (if online) and whenever the connection comes back. Returns a cleanup. */
 export function setupOfflineQueueListener(db: IDBPDatabase, onDone?: (result: ProcessResult) => void): () => void {
   const replay = () => {
-    processOfflineQueue(db).then((r) => onDone?.(r)).catch((err) => console.warn('Offline queue replay failed.', err));
+    processOfflineQueue(db)
+      .then((r) => {
+        if (r.processed > 0) window.dispatchEvent(new Event(QUEUE_SYNCED_EVENT));
+        onDone?.(r);
+      })
+      .catch((err) => console.warn('Offline queue replay failed.', err));
   };
   window.addEventListener('online', replay);
   if (navigator.onLine) replay();

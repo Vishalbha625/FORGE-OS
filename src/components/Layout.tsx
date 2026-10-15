@@ -129,8 +129,9 @@ function QuickActionFab() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
-  // The coach screen has its own input bar where this button would sit.
-  if (pathname === '/coach') return null;
+  // The coach screen has its own input bar where this button would sit, and
+  // community screens have their own new-post button and comment bar.
+  if (pathname === '/coach' || pathname.startsWith('/community')) return null;
   return (
     <>
       {open && <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm animate-fade" onClick={() => setOpen(false)} />}
