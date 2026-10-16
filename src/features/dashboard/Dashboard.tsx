@@ -8,6 +8,7 @@ import { Card, StatTile, StatusPill, Ring, Bar, SectionTitle, InfoNote, Highligh
 import { LOG_ICONS } from '../../components/icons';
 import { computeDayStatus, generateWeeklyReport } from '../../lib/coach';
 import { dashboardStatus, weeklyReview } from '../../lib/analytics';
+import { PushSoftAsk } from '../settings/PushSoftAsk';
 import { fmtDate, daysBetween, relativeDay } from '../../lib/dates';
 import { fmtPace, fmtDuration, round0, fmtHrsMins } from '../../lib/calc';
 import type { PlannedWorkout } from '../../db/types';
@@ -91,6 +92,10 @@ export function Dashboard() {
           {profile.raceDivision} · {fmtDate(profile.raceDate, { weekday: 'short' })}
         </div>
       </Card>
+
+      <div className="mt-3">
+        <PushSoftAsk variant="reminders" />
+      </div>
 
       <SectionTitle action={<SectionLink to="/training">Calendar</SectionLink>}>Today's plan</SectionTitle>
       {plan && !plan.types.includes('rest') ? (

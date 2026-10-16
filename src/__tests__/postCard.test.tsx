@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { PostCard } from '../features/community/PostCard';
+import { AuthProvider } from '../store/AuthContext';
+import { AppProvider } from '../store/AppContext';
 import type { CommunityPost } from '../lib/communityService';
 
 const post = (extra: Partial<CommunityPost> = {}): CommunityPost => ({
@@ -10,7 +12,8 @@ const post = (extra: Partial<CommunityPost> = {}): CommunityPost => ({
   author: { id: 'u-author', display_name: 'Vishal Bhardwaj', goals: [], created_at: '2026-10-01T00:00:00Z' },
   kudos_count: 12, comment_count: 3, user_has_kudosed: false, ...extra,
 });
-const render = (p: CommunityPost, me = 'u-viewer') => renderToStaticMarkup(<MemoryRouter><PostCard post={p} currentUserId={me} /></MemoryRouter>);
+// The card reads the session (to notify the author after kudos), so it renders inside the app's providers.
+const render = (p: CommunityPost, me = 'u-viewer') => renderToStaticMarkup(<MemoryRouter><AuthProvider><AppProvider><PostCard post={p} currentUserId={me} /></AppProvider></AuthProvider></MemoryRouter>);
 
 describe('PostCard', () => {
   it('renders the title, the author and a link to their profile', () => {
@@ -41,7 +44,7 @@ describe('PostCard', () => {
     expect(render(post({ is_pr: true }))).toContain('>PR<');
     expect(render(post())).toContain('Post options'); // others' posts: report
     expect(render(post(), '')).not.toContain('Post options'); // nobody signed in: no menu
-    const mine = renderToStaticMarkup(<MemoryRouter><PostCard post={post()} currentUserId="u-author" onEdit={() => {}} onRemove={() => {}} /></MemoryRouter>);
+    const mine = renderToStaticMarkup(<MemoryRouter><AuthProvider><AppProvider><PostCard post={post()} currentUserId="u-author" onEdit={() => {}} onRemove={() => {}} /></AppProvider></AuthProvider></MemoryRouter>);
     expect(mine).toContain('Post options');
     expect(render(post())).toContain('href="/community/profile/u-author"');
   });

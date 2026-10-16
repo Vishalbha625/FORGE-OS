@@ -9,6 +9,7 @@ import { CreatePostSheet } from './CreatePostSheet';
 import { EditPostSheet } from './EditPostSheet';
 import { Avatar, myDisplayName } from './shared';
 import { SkeletonPost } from '../../components/Skeleton';
+import { PushSoftAsk } from '../settings/PushSoftAsk';
 
 export function FeedPage() {
   const { user } = useAuth();
@@ -55,6 +56,8 @@ export function FeedPage() {
           <Search className="h-4 w-4" aria-hidden />
         </Link>
       </header>
+
+      <PushSoftAsk variant="social" />
 
       {feed.isOffline && (
         <p role="status" className="mb-4 flex items-center gap-2 rounded-lg border border-warn/40 px-3 py-2 text-xs text-warn">

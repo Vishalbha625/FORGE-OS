@@ -15,6 +15,8 @@ import { PostCard } from './PostCard';
 import { EditPostSheet } from './EditPostSheet';
 import { Avatar, isOffline, myDisplayName } from './shared';
 import { SkeletonCard, SkeletonLine, SkeletonPost } from '../../components/Skeleton';
+import { useSocialNotify } from './useSocialNotify';
+import { PushSoftAsk } from '../settings/PushSoftAsk';
 
 type CommentState = 'sending' | 'queued';
 interface ShownComment extends CommunityComment {
@@ -27,6 +29,7 @@ export function PostDetailPage() {
   const userId = user?.id ?? '';
   const navigate = useNavigate();
   const toast = useToast();
+  const notifySocial = useSocialNotify();
   const confirm = useConfirm();
 
   const [post, setPost] = useState<CommunityPost | null>(null);
@@ -142,6 +145,7 @@ export function PostDetailPage() {
     }
     const saved = res.data;
     setComments((c) => c.map((x) => (x.id === id ? saved : x)));
+    if (post) notifySocial('comment_received', post.author_id, post.id);
   };
 
   const removeComment = async (c: ShownComment) => {
@@ -195,6 +199,9 @@ export function PostDetailPage() {
     <div className="pb-40">
       {back}
       <PostCard post={post} currentUserId={userId} expanded onChange={keep} onEdit={setEditing} onRemove={() => navigate('/community', { replace: true })} />
+      <div className="mt-4">
+        <PushSoftAsk variant="social" />
+      </div>
 
       <section className="mt-5" aria-labelledby="comments-title">
         <h2 id="comments-title" className="mb-2 text-sm font-medium">Comments</h2>

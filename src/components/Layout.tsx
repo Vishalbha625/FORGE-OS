@@ -4,6 +4,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Dumbbell, Utensils, Users, User, Plus, Sparkles, type LucideIcon } from 'lucide-react';
 import { useLog, type LogKind } from '../features/logging/QuickLog';
 import { ReminderRunner } from './ReminderRunner';
+import { PushRuntime } from '../features/settings/PushRuntime';
 import { ThemeSwitcher } from '../store/theme';
 import { LOG_ICONS } from './icons';
 
@@ -34,6 +35,7 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="relative mx-auto flex min-h-full max-w-md flex-col">
         <main className="flex-1 px-4 pb-32 pt-1">{children}</main>
         <ReminderRunner />
+        <PushRuntime />
         <QuickActionFab />
       </div>
       <BottomNav />

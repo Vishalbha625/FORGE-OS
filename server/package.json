@@ -1,0 +1,10 @@
+{
+  "name": "forge-os-server",
+  "private": true,
+  "type": "module",
+  "description": "Server-only dependencies for server/coach-server.mjs. Never bundled into the app.",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

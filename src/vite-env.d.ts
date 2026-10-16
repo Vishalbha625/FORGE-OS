@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   /** Supabase anon key: public by design, access is enforced by RLS. */
   readonly VITE_SUPABASE_ANON_KEY?: string;
+  /** Optional: the server's VAPID public key. Without it the app asks the server (/api/push/config). */
+  readonly VITE_VAPID_PUBLIC_KEY?: string;
 }
 
 interface ImportMeta {

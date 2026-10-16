@@ -254,3 +254,12 @@ export function AnimatedBadge({ children }: { children: ReactNode }) {
     </span>
   );
 }
+
+/** On/off switch. Neutral: on is the foreground colour, never orange. */
+export function Toggle({ on, onClick, label, disabled }: { on: boolean; onClick: () => void; label: string; disabled?: boolean }) {
+  return (
+    <button onClick={onClick} role="switch" aria-checked={on} aria-label={label} disabled={disabled} className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors disabled:opacity-50 ${on ? 'border-transparent bg-foreground' : 'border-border bg-secondary'}`}>
+      <span className={`absolute top-[3px] h-4 w-4 rounded-full transition-all motion-reduce:transition-none ${on ? 'left-[22px] bg-background' : 'left-[3px] bg-foreground/70'}`} />
+    </button>
+  );
+}

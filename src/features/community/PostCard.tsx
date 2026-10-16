@@ -10,6 +10,7 @@ import { useToast } from '../../store/toast';
 import { useConfirm } from '../../store/confirm';
 import { Avatar, PostPhoto, VisibilityIcon, isOffline, postStats } from './shared';
 import { BlockReportSheet } from './BlockReportSheet';
+import { useSocialNotify } from './useSocialNotify';
 
 interface PostCardProps {
   post: CommunityPost;
@@ -28,6 +29,7 @@ const LONG_CAPTION = 180;
 export const PostCard = memo(function PostCard({ post, currentUserId, onChange, onRemove, onEdit, expanded = false }: PostCardProps) {
   const toast = useToast();
   const confirm = useConfirm();
+  const notifySocial = useSocialNotify();
   const kudosKey = `kudos-${post.id}`;
   const [kudos, setKudos] = useState({ on: post.user_has_kudosed, count: post.kudos_count });
   const [menuOpen, setMenuOpen] = useState(false);
@@ -77,6 +79,7 @@ export const PostCard = memo(function PostCard({ post, currentUserId, onChange, 
       return;
     }
     onChange?.(updated);
+    if (after.on) notifySocial('kudos_received', post.author_id, post.id);
   };
 
   const remove = async () => {

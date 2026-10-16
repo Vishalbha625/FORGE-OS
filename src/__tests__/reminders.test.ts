@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { calculateNextReminder, dueReminders, mergeReminders, reminderSlots, type ReminderContext } from '../lib/reminders';
-import type { Reminder } from '../db/types';
+import { calculateNextReminder, dueReminders, mergeReminders, reminderPushPlan, reminderSlots, type PlannedPush, type PushPlanContext, type ReminderContext } from '../lib/reminders';
+import type { Reminder, Settings } from '../db/types';
 
 const ctx = (o: Partial<ReminderContext> = {}): ReminderContext => ({
   now: '12:00', isoWeekday: 3, daysToRace: 100, plannedToday: true, loggedToday: false, firedToday: () => false, ...o,
@@ -50,5 +50,34 @@ describe('calculateNextReminder', () => {
     expect(calculateNextReminder('weigh', { reminders: on('weigh') }, opts)?.toISOString()).toBe('2026-10-19T01:30:00.000Z'); // Monday 07:00 IST
     const quiet = { start: '13:00', end: '14:00' };
     expect(calculateNextReminder('meal', { reminders: on('meal'), quietHours: quiet }, opts)?.toISOString()).toBe('2026-10-15T15:00:00.000Z'); // 20:30 IST
+  });
+});
+
+describe('reminder push plan (pushes sent while the app is closed)', () => {
+  const ctx = (o: Partial<PushPlanContext> = {}): PushPlanContext => ({ ...opts, plannedOn: () => true, loggedOn: () => false, daysToRace: 100, ...o });
+  const settingsWith = (keys: string[], push: Settings['push'] = { enabled: true }) => ({
+    reminders: mergeReminders(keys.map((key) => ({ key, label: key, enabled: true }))),
+    push,
+  });
+  const at = (plan: PlannedPush[], type: string) => plan.find((p) => p.type === type)?.fireAt?.toISOString() ?? null;
+
+  it('cancels everything while push is off', () => {
+    const plan = reminderPushPlan(settingsWith(['workout', 'meal'], { enabled: false }), ctx());
+    expect(plan).toHaveLength(10);
+    expect(plan.every((p) => p.fireAt === null)).toBe(true);
+  });
+  it('schedules each meal slot as its own push, and skips muted categories', () => {
+    const plan = reminderPushPlan(settingsWith(['meal', 'water'], { enabled: true, categories: { water: false } }), ctx());
+    expect(at(plan, 'reminder_meal_breakfast')).toBe('2026-10-16T03:00:00.000Z'); // tomorrow 08:30 IST
+    expect(at(plan, 'reminder_meal_lunch')).toBe('2026-10-15T08:00:00.000Z'); // today 13:30 IST
+    expect(at(plan, 'reminder_meal_dinner')).toBe('2026-10-15T15:00:00.000Z'); // today 20:30 IST
+    expect(at(plan, 'reminder_water')).toBeNull();
+    expect(at(plan, 'reminder_bedtime')).toBeNull(); // not switched on
+  });
+  it('only pushes a workout reminder on a planned day, and a missing-log one if nothing is logged', () => {
+    const settings = settingsWith(['workout', 'missing']);
+    expect(at(reminderPushPlan(settings, ctx({ plannedOn: () => false })), 'reminder_workout')).toBeNull();
+    expect(at(reminderPushPlan(settings, ctx()), 'reminder_missing')).toBe('2026-10-15T15:00:00.000Z'); // 20:30 IST today
+    expect(at(reminderPushPlan(settings, ctx({ loggedOn: (d) => d === '2026-10-15' })), 'reminder_missing')).toBeNull();
   });
 });

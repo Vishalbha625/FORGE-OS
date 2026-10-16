@@ -8,7 +8,8 @@ services:
     plan: free
     branch: main
     autoDeploy: true
-    buildCommand: npm ci --omit=dev
+    # Root runtime deps (Anthropic SDK, supabase-js), then the server-only ones (web-push).
+    buildCommand: npm ci --omit=dev && npm ci --omit=dev --prefix server
     startCommand: npm run server
     healthCheckPath: /api/health
     envVars:
@@ -25,3 +26,20 @@ services:
         sync: false
       - key: COACH_EFFORT
         value: medium
+      # Push notifications, Strava import and the notification centre need these.
+      # Entered in the Render dashboard; never committed. See DEPLOYMENT.md.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      # Server only: reads other members' push subscriptions to deliver to them,
+      # and the Strava tokens. Never put this in Vercel or the app.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Generate once: cd server && npx web-push generate-vapid-keys
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_EMAIL
+        value: mailto:vishal@forge-os.app

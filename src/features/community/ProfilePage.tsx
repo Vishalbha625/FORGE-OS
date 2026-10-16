@@ -15,6 +15,7 @@ import { EditProfileSheet } from './EditProfileSheet';
 import { BlockReportSheet, type BlockReportMode } from './BlockReportSheet';
 import { Avatar } from './shared';
 import { SkeletonAvatar, SkeletonLine, SkeletonPost } from '../../components/Skeleton';
+import { useSocialNotify } from './useSocialNotify';
 
 interface Counts { posts?: number; followers?: number; following?: number }
 
@@ -24,6 +25,7 @@ export function ProfilePage() {
   const me = user?.id ?? '';
   const isMe = profileId === me;
   const toast = useToast();
+  const notifySocial = useSocialNotify();
   const confirm = useConfirm();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -113,6 +115,7 @@ export function ProfilePage() {
       toast(`That didn't work. ${res.error}`);
     } else if (res && before === 'none') {
       toast(`Follow request sent to ${profile.display_name}`);
+      notifySocial('follow_request', profileId);
     } else if (res && before === 'accepted') {
       void loadPosts(); // their followers-only posts are no longer yours to see
     }

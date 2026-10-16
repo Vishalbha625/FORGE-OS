@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // tested against real Postgres by supabase/tests/rls_test.sql and api.sh.
 
 type Row = Record<string, unknown>;
-export type Table = 'profiles' | 'posts' | 'kudos' | 'comments' | 'follows' | 'blocks' | 'reports';
+export type Table = 'profiles' | 'posts' | 'kudos' | 'comments' | 'follows' | 'blocks' | 'reports' | 'push_subscriptions' | 'notifications';
 type Pred = (r: Row) => boolean;
 
 export interface LoggedCall {
@@ -36,22 +36,53 @@ const KEYS: Record<Table, string[]> = {
   kudos: ['post_id', 'user_id'],
   follows: ['follower_id', 'followee_id'],
   blocks: ['blocker_id', 'blocked_id'],
+  push_subscriptions: ['user_id', 'endpoint'],
+  notifications: ['id'],
 };
 
 const POST_COLUMNS = ['caption', 'distance_km', 'duration_sec', 'pace_sec_per_km', 'elevation_m', 'station_detail', 'route_text', 'photo_path'];
 
 export class FakeBackend {
-  readonly tables: Record<Table, Row[]> = { profiles: [], posts: [], kudos: [], comments: [], follows: [], blocks: [], reports: [] };
+  readonly tables: Record<Table, Row[]> = { profiles: [], posts: [], kudos: [], comments: [], follows: [], blocks: [], reports: [], push_subscriptions: [], notifications: [] };
   readonly objects = new Map<string, Blob>();
   readonly log: LoggedCall[] = [];
   /** auth.uid(): who the requests are made as. */
   uid: string | null = null;
+  /** The service role: no row-level security (the coach server's admin client). */
+  bypass = false;
   private tick = 0;
 
   /** Monotonic timestamps with microseconds, like Postgres returns. */
+  private offsetMs = 0;
   now(): string {
     this.tick++;
-    return new Date(Date.UTC(2026, 9, 15, 6, 0, 0) + this.tick * 1000).toISOString().replace('Z', `${String(this.tick).padStart(3, '0')}+00:00`);
+    return new Date(this.clockMs()).toISOString().replace('Z', `${String(this.tick).padStart(3, '0')}+00:00`);
+  }
+  /** The database clock, in ms (a second per write, plus any advance()). */
+  clockMs(): number {
+    return Date.UTC(2026, 9, 15, 6, 0, 0) + this.tick * 1000 + this.offsetMs;
+  }
+  /** Moves the database clock forward, as if time passed. */
+  advance(ms: number): void {
+    this.offsetMs += ms;
+  }
+
+  /** notification_allowed() from notifications.sql. */
+  private notificationAllowed(r: Row): boolean {
+    const me = this.uid;
+    const { type, actor_id: actor, user_id: user, post_id: post, comment_id: comment } = r;
+    if (!me || actor !== me || !user || user === actor || this.blockedBetween(actor as string, user)) return false;
+    const postOf = (id: unknown) => this.tables.posts.find((p) => p.id === id);
+    let happened = false;
+    if (type === 'kudos_received') happened = !comment && postOf(post)?.author_id === user && this.tables.kudos.some((k) => k.post_id === post && k.user_id === actor);
+    else if (type === 'comment_received') happened = postOf(post)?.author_id === user && this.tables.comments.some((c) => c.id === comment && c.post_id === post && c.author_id === actor);
+    else if (type === 'follow_request') happened = !post && this.tables.follows.some((f) => f.follower_id === actor && f.followee_id === user && f.status === 'pending');
+    else if (type === 'follow_accepted') happened = !post && this.tables.follows.some((f) => f.follower_id === user && f.followee_id === actor && f.status === 'accepted');
+    const fiveMinAgo = this.clockMs() - 5 * 60_000;
+    const recent = this.tables.notifications.some(
+      (n) => n.actor_id === actor && n.user_id === user && n.type === type && (n.post_id ?? null) === (post ?? null) && Date.parse(String(n.created_at)) > fiveMinAgo,
+    );
+    return happened && !recent;
   }
 
   as(userId: string | null): this {
@@ -90,6 +121,7 @@ export class FakeBackend {
 
   /** Rows the current user may read (select policy, also the `using` of update and delete). */
   private readable(table: Table, r: Row): boolean {
+    if (this.bypass) return true;
     const me = this.uid;
     switch (table) {
       case 'profiles':
@@ -106,10 +138,15 @@ export class FakeBackend {
         return this.canViewPostId(r.post_id);
       case 'reports':
         return false; // no select policy: write-only
+      case 'push_subscriptions':
+        return r.user_id === me;
+      case 'notifications':
+        return r.user_id === me;
     }
   }
 
   private mayWrite(table: Table, op: 'update' | 'delete', r: Row): boolean {
+    if (this.bypass) return true;
     const me = this.uid;
     switch (table) {
       case 'profiles':
@@ -126,10 +163,15 @@ export class FakeBackend {
         return op === 'delete' && r.user_id === me;
       case 'reports':
         return false;
+      case 'push_subscriptions':
+        return r.user_id === me;
+      case 'notifications':
+        return r.user_id === me;
     }
   }
 
   private insertAllowed(table: Table, r: Row): boolean {
+    if (this.bypass) return true;
     const me = this.uid;
     if (!me) return false;
     switch (table) {
@@ -147,6 +189,10 @@ export class FakeBackend {
         return r.user_id === me && this.canViewPostId(r.post_id);
       case 'reports':
         return r.reporter_id === me;
+      case 'push_subscriptions':
+        return r.user_id === me;
+      case 'notifications':
+        return this.notificationAllowed(r);
     }
   }
 
@@ -168,19 +214,34 @@ export class FakeBackend {
       r.goals ??= [];
     }
     if (table === 'follows') r.status ??= 'pending';
+    if (table === 'notifications') {
+      r.read = false; // column grants: inserts can't set it
+      r.post_id ??= null;
+      r.comment_id ??= null;
+    }
+    if (table === 'push_subscriptions') {
+      r.id ??= crypto.randomUUID();
+      r.muted ??= [];
+      r.device_tag ??= 'default';
+    }
     return r;
   }
 
-  private sameKey(table: Table, a: Row, b: Row): boolean {
-    return KEYS[table].every((k) => a[k] === b[k]);
-  }
-
-  insert(table: Table, rows: Row[], opts: { upsert?: boolean; ignoreDuplicates?: boolean } = {}): Result {
+  insert(table: Table, rows: Row[], opts: { upsert?: boolean; ignoreDuplicates?: boolean; onConflict?: string } = {}): Result {
     for (const input of rows) {
       const r = this.withDefaults(table, input);
       if (!this.insertAllowed(table, r)) return { data: null, error: RLS_DENIED, status: 403 };
-      if (this.tables[table].some((x) => this.sameKey(table, x, r))) {
+      const keys = opts.onConflict ? opts.onConflict.split(',').map((k) => k.trim()) : KEYS[table];
+      const existing = this.tables[table].find((x) => keys.every((k) => x[k] === r[k]));
+      if (existing) {
         if (opts.upsert && opts.ignoreDuplicates) continue;
+        if (opts.upsert) {
+          // ON CONFLICT DO UPDATE: the update policy decides.
+          if (!this.mayWrite(table, 'update', existing)) return { data: null, error: RLS_DENIED, status: 403 };
+          const { id: _keep, ...rest } = input;
+          Object.assign(existing, rest);
+          continue;
+        }
         return { data: null, error: DUPLICATE, status: 409 };
       }
       this.tables[table].push(r);
@@ -189,6 +250,8 @@ export class FakeBackend {
   }
 
   update(table: Table, patch: Row, where: Pred): Row[] {
+    // Column grants: the recipient can only flip `read`.
+    if (table === 'notifications' && !this.bypass && Object.keys(patch).some((k) => k !== 'read')) throw new Error('permission denied for table notifications');
     const hit = this.tables[table].filter((r) => this.readable(table, r) && this.mayWrite(table, 'update', r) && where(r));
     for (const r of hit) {
       Object.assign(r, patch);
@@ -220,8 +283,12 @@ export class FakeBackend {
   /** The row as the select string asks for it, with embedded relations. */
   private shape(table: Table, r: Row, columns: string, embedFilters: Map<string, unknown>): Row {
     const out: Row = { ...r };
-    const profileEmbed = /(\w+):profiles!\w+?_(author|follower|followee)_id_fkey\(/g;
+    const profileEmbed = /(\w+):profiles!\w+?_(author|follower|followee|actor)_id_fkey\(/g;
     for (const m of columns.matchAll(profileEmbed)) out[m[1]] = this.profileOf(r[`${m[2]}_id`]);
+    if (table === 'notifications' && columns.includes('post:posts')) {
+      const p = this.tables.posts.find((x) => x.id === r.post_id);
+      out.post = p && this.readable('posts', p) ? { title: p.title } : null;
+    }
     if (table === 'posts') {
       if (columns.includes('kudos(count)')) out.kudos = [{ count: this.tables.kudos.filter((k) => k.post_id === r.id && this.readable('kudos', k)).length }];
       if (columns.includes('comments(count)')) out.comments = [{ count: this.tables.comments.filter((c) => c.post_id === r.id && this.readable('comments', c)).length }];
@@ -265,9 +332,23 @@ export class FakeBackend {
 
   // ── The client ────────────────────────────────────────────────────────────
 
-  client(): SupabaseClient {
+  /** A client acting as the current `uid`, or bound to one user, or as the service role. */
+  client(identity?: { uid: string | null } | 'service'): SupabaseClient {
     const backend = this;
-    const record = (table: string, op: LoggedCall['op']) => backend.log.push({ table, op, as: backend.uid });
+    const bound = identity === undefined ? undefined : identity === 'service' ? { uid: null, service: true } : { uid: identity.uid, service: false };
+    const withIdentity = <T>(fn: () => T): T => {
+      if (!bound) return fn();
+      const before = { uid: backend.uid, bypass: backend.bypass };
+      backend.uid = bound.uid;
+      backend.bypass = bound.service;
+      try {
+        return fn();
+      } finally {
+        backend.uid = before.uid;
+        backend.bypass = before.bypass;
+      }
+    };
+    const record = (table: string, op: LoggedCall['op']) => backend.log.push({ table, op, as: bound?.service ? 'service' : (bound?.uid ?? backend.uid) });
     const ownFolder = (path: string) => path.split('/')[0] === backend.uid;
     const bucket = {
       upload: async (path: string, blob: Blob) => {
@@ -287,10 +368,10 @@ export class FakeBackend {
       },
     };
     const client = {
-      from: (table: Table) => new Query(backend, table, record),
+      from: (table: Table) => new Query(backend, table, record, withIdentity),
       rpc: (fn: string, args: Row) => {
         record(`rpc:${fn}`, 'rpc');
-        return Promise.resolve(backend.rpc(fn, args));
+        return Promise.resolve(withIdentity(() => backend.rpc(fn, args)));
       },
       storage: { from: () => bucket },
       auth: {
@@ -307,7 +388,7 @@ export class FakeBackend {
   }
 }
 
-type Op = { kind: 'select'; columns: string; head: boolean } | { kind: 'insert'; rows: Row[]; upsert: boolean; ignoreDuplicates: boolean } | { kind: 'update'; patch: Row } | { kind: 'delete' };
+type Op = { kind: 'select'; columns: string; head: boolean } | { kind: 'insert'; rows: Row[]; upsert: boolean; ignoreDuplicates: boolean; onConflict?: string } | { kind: 'update'; patch: Row } | { kind: 'delete' };
 
 /** Just enough of the PostgREST query builder for communityService and authService. */
 class Query {
@@ -323,6 +404,7 @@ class Query {
     private readonly backend: FakeBackend,
     private readonly table: Table,
     private readonly record: (table: string, op: LoggedCall['op']) => void,
+    private readonly withIdentity: <T>(fn: () => T) => T = (fn) => fn(),
   ) {}
 
   select(columns = '*', opts: { head?: boolean } = {}) {
@@ -334,8 +416,8 @@ class Query {
     this.op = { kind: 'insert', rows: Array.isArray(rows) ? rows : [rows], upsert: false, ignoreDuplicates: false };
     return this;
   }
-  upsert(rows: Row | Row[], opts: { ignoreDuplicates?: boolean } = {}) {
-    this.op = { kind: 'insert', rows: Array.isArray(rows) ? rows : [rows], upsert: true, ignoreDuplicates: !!opts.ignoreDuplicates };
+  upsert(rows: Row | Row[], opts: { ignoreDuplicates?: boolean; onConflict?: string } = {}) {
+    this.op = { kind: 'insert', rows: Array.isArray(rows) ? rows : [rows], upsert: true, ignoreDuplicates: !!opts.ignoreDuplicates, onConflict: opts.onConflict };
     return this;
   }
   update(patch: Row) {
@@ -349,6 +431,18 @@ class Query {
   eq(col: string, value: unknown) {
     if (col.includes('.')) this.embedFilters.set(col, value);
     else this.preds.push((r) => r[col] === value);
+    return this;
+  }
+  gt(col: string, value: string) {
+    this.preds.push((r) => String(r[col]) > value);
+    return this;
+  }
+  gte(col: string, value: string) {
+    this.preds.push((r) => String(r[col]) >= value);
+    return this;
+  }
+  lt(col: string, value: string) {
+    this.preds.push((r) => String(r[col]) < value);
     return this;
   }
   neq(col: string, value: unknown) {
@@ -391,7 +485,7 @@ class Query {
     switch (this.op.kind) {
       case 'insert':
         this.record(this.table, this.op.upsert ? 'upsert' : 'insert');
-        return b.insert(this.table, this.op.rows, { upsert: this.op.upsert, ignoreDuplicates: this.op.ignoreDuplicates });
+        return b.insert(this.table, this.op.rows, { upsert: this.op.upsert, ignoreDuplicates: this.op.ignoreDuplicates, onConflict: this.op.onConflict });
       case 'update': {
         this.record(this.table, 'update');
         const rows = b.update(this.table, this.op.patch, where);
@@ -428,7 +522,7 @@ class Query {
 
   then<T>(onOk: (r: Result) => T, onErr?: (e: unknown) => T): Promise<T> {
     return Promise.resolve()
-      .then(() => this.run())
+      .then(() => this.withIdentity(() => this.run()))
       .then(onOk, onErr);
   }
 }

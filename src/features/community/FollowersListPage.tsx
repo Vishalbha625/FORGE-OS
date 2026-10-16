@@ -6,6 +6,7 @@ import { useToast } from '../../store/toast';
 import { Segmented } from '../../components/ui';
 import { acceptFollow, getFollowList, getPendingFollowRequests, getProfile, removeFollow, type CommunityProfile, type FollowRelation } from '../../lib/communityService';
 import { ProfileRow } from './shared';
+import { useSocialNotify } from './useSocialNotify';
 
 type Tab = 'followers' | 'following';
 
@@ -16,6 +17,7 @@ export function FollowersListPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const toast = useToast();
+  const notifySocial = useSocialNotify();
   const tab: Tab = pathname.endsWith('/following') ? 'following' : 'followers';
   const isMe = user?.id === userId;
 
@@ -58,6 +60,7 @@ export function FollowersListPage() {
     }
     setPending((p) => p.filter((x) => x.follower_id !== r.follower_id));
     setList((l) => [r.profile, ...l.filter((x) => x.id !== r.profile.id)]);
+    notifySocial('follow_accepted', r.follower_id);
     toast(`${r.profile.display_name} can now see your followers-only posts`);
   };
 

@@ -375,6 +375,17 @@ export interface Settings extends BaseRecord {
   coachUrl?: string;
   /** Shared access token for a public coach server (matches COACH_ACCESS_TOKEN there). Stored on this device only. */
   coachToken?: string;
+  /** Push notifications on this device. Optional: added after v1.0, absent means off. */
+  push?: PushSettings;
+}
+
+/** What a push can be about. Reminder categories are scheduled from this device; social is filtered by the server. */
+export type PushCategory = 'social' | 'workout' | 'meals' | 'water' | 'sleep' | 'weigh_in' | 'weekly_review' | 'race';
+
+export interface PushSettings {
+  enabled: boolean;
+  /** Per category; a missing key means on. */
+  categories?: Partial<Record<PushCategory, boolean>>;
 }
 
 // ── Audit history ─────────────────────────────────────────────────────────────

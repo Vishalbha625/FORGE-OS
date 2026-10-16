@@ -1,4 +1,5 @@
-import type { Reminder, Settings } from '../db/types';
+import type { PushCategory, Reminder, Settings } from '../db/types';
+import type { ReminderPushType } from './pushService';
 import { DEFAULT_TZ, addDays, clockAt, toISODate, weekday } from './dates';
 
 export const DEFAULT_MEAL_TIMES = ['08:30', '13:30', '20:30'];
@@ -90,7 +91,14 @@ export interface DueReminder {
   body: string;
   /** Slot ids to mark as fired, including earlier ones missed while the app was closed. */
   fireIds: string[];
+  /** Notification tag, shared with the matching push so the two never show twice. */
+  tag: string;
 }
+
+const mealOf = (time: string) => (time < '11:00' ? 'breakfast' : time < '16:00' ? 'lunch' : 'dinner');
+
+/** The push type (and notification tag) for a reminder firing at `time`. */
+export const reminderTag = (key: string, time: string) => (key === 'meal' ? `reminder_meal_${mealOf(time)}` : `reminder_${key}`);
 
 function message(key: string, ctx: ReminderContext, time: string): { title: string; body: string } | undefined {
   switch (key) {
@@ -106,10 +114,8 @@ function message(key: string, ctx: ReminderContext, time: string): { title: stri
       return { title: 'Wind down', body: 'Time to start your bedtime routine.' };
     case 'water':
       return { title: 'Hydration', body: 'Have a glass of water and log it.' };
-    case 'meal': {
-      const meal = time < '11:00' ? 'breakfast' : time < '16:00' ? 'lunch' : 'dinner';
-      return { title: 'Meal log', body: `Log your ${meal} while you remember it.` };
-    }
+    case 'meal':
+      return { title: 'Meal log', body: `Log your ${mealOf(time)} while you remember it.` };
     case 'weigh':
       return { title: 'Weekly weigh-in', body: 'Weigh in before breakfast for a consistent trend.' };
     default:
@@ -136,7 +142,7 @@ export function dueReminders(reminders: Reminder[], ctx: ReminderContext): DueRe
     if (!due.length) continue;
     const latest = due[due.length - 1];
     const msg = message(r.key, ctx, latest);
-    if (msg) out.push({ key: r.key, ...msg, fireIds: due.map((t) => slotId(r, t, slots)) });
+    if (msg) out.push({ key: r.key, ...msg, fireIds: due.map((t) => slotId(r, t, slots)), tag: reminderTag(r.key, latest) });
   }
   return out;
 }
@@ -156,22 +162,87 @@ export function calculateNextReminder(type: ReminderKey | string, settings: Pick
   const reminders = mergeReminders(settings.reminders);
   const r = reminders.find((x) => x.key === type);
   if (!r?.enabled) return undefined;
-  const slots = reminderSlots(r, reminders).filter((t) => !inQuietHours(t, settings.quietHours));
-  if (!slots.length) return undefined;
+  return nextOccurrence(reminderSlots(r, reminders), { ...opts, quietHours: settings.quietHours, isoWeekday: WEEKDAY[r.key] });
+}
 
+/** The next time any of these HH:MM slots comes round, outside quiet hours, on the weekday if one is given. */
+export function nextOccurrence(
+  slots: string[],
+  opts: NextReminderOptions & { quietHours?: { start: string; end: string }; isoWeekday?: number },
+): Date | undefined {
+  const usable = slots.filter((t) => !inQuietHours(t, opts.quietHours));
+  if (!usable.length) return undefined;
   const now = opts.now ?? new Date();
   const tz = opts.timezone ?? DEFAULT_TZ;
   const today = toISODate(now, tz);
   // Minutes past midnight on the athlete's wall clock, with seconds, so a slot
   // at this very minute counts as already passed.
   const nowMin = toMin(clockAt(now, tz)) + now.getSeconds() / 60 + now.getMilliseconds() / 60000;
-  const day = WEEKDAY[r.key];
   for (let offset = 0; offset <= 7; offset++) {
-    if (day !== undefined && weekday(addDays(today, offset)) !== day) continue;
-    for (const t of slots) {
+    if (opts.isoWeekday !== undefined && weekday(addDays(today, offset)) !== opts.isoWeekday) continue;
+    for (const t of usable) {
       const delta = offset * 1440 + toMin(t) - nowMin;
       if (delta > 0) return new Date(now.getTime() + Math.round(delta * 60_000));
     }
   }
   return undefined;
+}
+
+// ── Reminder pushes (sent by the server while the app is closed) ────────────
+
+const PUSH_OF: Record<string, { type: ReminderPushType; category: PushCategory }[]> = {
+  workout: [{ type: 'reminder_workout', category: 'workout' }],
+  missing: [{ type: 'reminder_missing', category: 'workout' }],
+  meal: [
+    { type: 'reminder_meal_breakfast', category: 'meals' },
+    { type: 'reminder_meal_lunch', category: 'meals' },
+    { type: 'reminder_meal_dinner', category: 'meals' },
+  ],
+  water: [{ type: 'reminder_water', category: 'water' }],
+  bedtime: [{ type: 'reminder_bedtime', category: 'sleep' }],
+  weigh: [{ type: 'reminder_weigh', category: 'weigh_in' }],
+  review: [{ type: 'reminder_review', category: 'weekly_review' }],
+  race: [{ type: 'reminder_race', category: 'race' }],
+};
+
+export interface PushPlanContext extends NextReminderOptions {
+  /** A session (not a rest day) is planned on this YYYY-MM-DD. */
+  plannedOn: (date: string) => boolean;
+  /** A run, strength or HYROX session is logged on this YYYY-MM-DD. */
+  loggedOn: (date: string) => boolean;
+  daysToRace: number;
+}
+
+export interface PlannedPush {
+  type: ReminderPushType;
+  /** null cancels: the reminder is off, muted, or not relevant this time. */
+  fireAt: Date | null;
+}
+
+/**
+ * The next push for every reminder type, from this device's reminders, push
+ * categories and plan. The server only stores one pending push per type, so
+ * this is recomputed whenever the app is open and the answer changes.
+ */
+export function reminderPushPlan(settings: Pick<Settings, 'reminders' | 'quietHours' | 'push'>, ctx: PushPlanContext): PlannedPush[] {
+  const reminders = mergeReminders(settings.reminders);
+  const tz = ctx.timezone ?? DEFAULT_TZ;
+  const out: PlannedPush[] = [];
+  for (const [key, pushes] of Object.entries(PUSH_OF)) {
+    const r = reminders.find((x) => x.key === key);
+    pushes.forEach((p, i) => {
+      if (!settings.push?.enabled || !r?.enabled || settings.push.categories?.[p.category] === false) return out.push({ type: p.type, fireAt: null });
+      // Each meal is its own push: breakfast, lunch and dinner slots in order.
+      const slots = key === 'meal' ? [reminderSlots(r, reminders)[i]].filter(Boolean) : reminderSlots(r, reminders);
+      let fireAt = nextOccurrence(slots, { now: ctx.now, timezone: tz, quietHours: settings.quietHours, isoWeekday: WEEKDAY[key] }) ?? null;
+      if (fireAt) {
+        const day = toISODate(fireAt, tz);
+        if ((key === 'workout' || key === 'missing') && !ctx.plannedOn(day)) fireAt = null;
+        else if (key === 'missing' && ctx.loggedOn(day)) fireAt = null;
+        else if (key === 'race' && ctx.daysToRace < 0) fireAt = null;
+      }
+      out.push({ type: p.type, fireAt });
+    });
+  }
+  return out;
 }

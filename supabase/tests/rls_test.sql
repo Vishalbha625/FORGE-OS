@@ -245,5 +245,32 @@ do $$ begin
 exception when insufficient_privilege then null; end $$;
 commit;
 
+\echo '21. push subscriptions are private to their owner'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'alice', true) \gset
+insert into public.push_subscriptions (user_id, endpoint, p256dh, auth_key, device_tag) values (auth.uid(), 'https://push.example/alice', 'p', 'a', 'phone');
+commit;
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'bob', true) \gset
+insert into public.push_subscriptions (user_id, endpoint, p256dh, auth_key) values (auth.uid(), 'https://push.example/bob', 'p', 'a');
+do $$ begin
+  assert (select count(*) from public.push_subscriptions) = 1, 'bob should see only his own subscription';
+  assert (select endpoint from public.push_subscriptions) = 'https://push.example/bob', 'bob read someone else''s subscription';
+end $$;
+update public.push_subscriptions set endpoint = 'https://evil.example/hijack' where user_id = '11111111-1111-1111-1111-111111111111';
+delete from public.push_subscriptions where user_id = '11111111-1111-1111-1111-111111111111';
+do $$ begin
+  insert into public.push_subscriptions (user_id, endpoint, p256dh, auth_key) values ('11111111-1111-1111-1111-111111111111', 'https://evil.example/x', 'p', 'a');
+  raise exception 'FAIL: bob subscribed in alice''s name';
+exception when insufficient_privilege then null; end $$;
+commit;
+do $$ begin
+  assert (select endpoint from public.push_subscriptions where user_id = '11111111-1111-1111-1111-111111111111') = 'https://push.example/alice', 'bob changed or deleted alice''s subscription';
+end $$;
+begin; set local role anon; select set_config('request.jwt.claim.sub', '', true) \gset
+do $$ begin
+  perform 1 from public.push_subscriptions;
+  raise exception 'FAIL: anonymous caller read push subscriptions';
+exception when insufficient_privilege then null; end $$;
+commit;
+
 \echo ''
 \echo 'ALL RLS TESTS PASSED'

@@ -32,4 +32,5 @@ psql_run "-f '$root/storage.sql'" >/dev/null
 psql_run "-f '$root/photos.sql'" >/dev/null
 psql_run "-f '$root/social.sql'" >/dev/null
 psql_run "-f '$root/unblock.sql'" >/dev/null
+for extra in push notifications strava; do [ -f "$root/$extra.sql" ] && psql_run "-f '$root/$extra.sql'" >/dev/null; done
 psql_run "-f '$here/rls_test.sql'"

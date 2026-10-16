@@ -7,13 +7,14 @@ import { useToast } from '../../store/toast';
 import { useAuth } from '../../store/AuthContext';
 import { signOut } from '../../lib/authService';
 import { AppHeader } from '../../components/Layout';
-import { Card, SectionTitle, Field, Sheet, Chip, InfoNote, Segmented, Highlight } from '../../components/ui';
+import { Card, SectionTitle, Field, Sheet, Chip, InfoNote, Segmented, Highlight, Toggle } from '../../components/ui';
 import { estimateNutrition, cmToFtIn, ageFromDob } from '../../lib/calc';
 import { fmtDate } from '../../lib/dates';
 import { GOAL_LABELS, DEFAULT_SUPPLEMENTS } from '../../lib/constants';
 import type { BackupFile } from '../../db/database';
 import { calculateNextReminder, mergeReminders } from '../../lib/reminders';
 import { useTheme } from '../../store/theme';
+import { PushSettings } from '../settings/PushSettings';
 import { diffKeys } from '../../lib/audit';
 import { notify } from '../../components/ReminderRunner';
 import { coachBaseUrl, coachFetch } from '../../lib/coachApi';
@@ -228,7 +229,7 @@ export function Profile() {
         <ul className="list-disc space-y-1 pl-4">
           <li>Shared community with other athletes: a Supabase project (schema and privacy rules in <code>supabase/</code>). Health data never goes there.</li>
           <li>Device sync for steps, sleep, heart rate and routes: the platform APIs above.</li>
-          <li>Reminders while the app is closed: a push service.</li>
+          <li>Notifications while the app is closed: the coach server with VAPID keys and a community account (see Notifications above).</li>
         </ul>
       </Card>
 
@@ -302,14 +303,6 @@ function EditHistory() {
         )}
       </Card>
     </>
-  );
-}
-
-function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
-  return (
-    <button onClick={onClick} role="switch" aria-checked={on} aria-label={label} className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${on ? 'border-transparent bg-foreground' : 'border-border bg-secondary'}`}>
-      <span className={`absolute top-[3px] h-4 w-4 rounded-full transition-all motion-reduce:transition-none ${on ? 'left-[22px] bg-background' : 'left-[3px] bg-foreground/70'}`} />
-    </button>
   );
 }
 
@@ -512,8 +505,9 @@ function SettingsSection() {
           <span className="text-muted">Notification permission: <b className="text-text">{perm}</b></span>
           <button className="link" onClick={test}>Send test</button>
         </div>
-        <InfoNote>Reminders fire while Forge OS is open (in a tab or the installed app). Browsers don't run app code when it's fully closed, so true background delivery would need a push service. "Workout" and "Missing log" reminders only fire on days with an unlogged planned session. Water repeats every 2 hours from its start time until an hour before bedtime.</InfoNote>
+        <InfoNote>Reminders fire while Forge OS is open (in a tab or the installed app). With notifications on (below), they also arrive when it's closed. "Workout" and "Missing log" reminders only fire on days with an unlogged planned session. Water repeats every 2 hours from its start time until an hour before bedtime.</InfoNote>
       </Card>
+      <PushSettings />
       <AiCoachSection />
       <SectionTitle>Water serving size</SectionTitle>
       <Card className="mb-3">
