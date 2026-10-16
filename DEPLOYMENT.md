@@ -29,6 +29,12 @@ answers the same: `{ ok, model, keyPresent, authRequired, push, strava }`.
    | 7 | `supabase/notifications.sql` | `notifications`, with an insert check that the event really happened |
    | 8 | `supabase/strava.sql` | `strava_connections` (no app access at all; the server only) |
 
+   If you apply them through a tool that stops to confirm destructive statements (the Supabase MCP
+   connector does), the `drop policy if exists` and `drop trigger if exists` lines are no-ops on a new
+   project and can be left out. Keep them when re-running on a project that already has the schema.
+   Afterwards, Advisors → Security should list only "SECURITY DEFINER function executable by signed-in
+   users" for the helper functions: that is intended, the policies and the app call them, and each
+   answers only about the caller.
 3. Authentication → URL configuration: Site URL `https://forge-os-black.vercel.app`; redirect URLs
    `https://forge-os-black.vercel.app/auth/callback` and `https://forge-os-black.vercel.app/auth/reset`.
 4. Project settings → API: copy the **Project URL**, the **anon** key (public by design) and the
