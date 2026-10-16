@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, Check, RefreshCw } from 'lucide-react';
 import { Card, SectionTitle } from '../../components/ui';
@@ -6,7 +6,8 @@ import { useApp } from '../../store/AppContext';
 import { useConfirm } from '../../store/confirm';
 import { useToast } from '../../store/toast';
 import { usePushApi } from '../../hooks/usePushApi';
-import { connectStrava, disconnectStrava, syncActivities, syncSummary } from '../../lib/stravaService';
+import { connectStrava, disconnectStrava, getStravaAvailability, syncActivities, syncSummary } from '../../lib/stravaService';
+import { coachBaseUrl } from '../../lib/coachApi';
 import { getRelativeTime } from '../../lib/relativeTime';
 
 /** "Just now" and "Yesterday" read better mid-sentence in lower case; dates stay as they are. */
@@ -20,6 +21,20 @@ export function StravaConnect() {
   const confirm = useConfirm();
   const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null);
   const strava = settings?.strava;
+  const baseUrl = coachBaseUrl(settings);
+  const [availability, setAvailability] = useState<'checking' | 'on' | 'off' | 'unknown'>('checking');
+
+  // Only ask the server when there is something to offer: signed in and not connected yet.
+  const askServer = !!api && !strava?.connected;
+  useEffect(() => {
+    if (!askServer) return;
+    let live = true;
+    setAvailability('checking');
+    void getStravaAvailability(baseUrl).then((a) => live && setAvailability(a));
+    return () => {
+      live = false;
+    };
+  }, [askServer, baseUrl]);
 
   const connect = async () => {
     if (!api) return;
@@ -81,11 +96,13 @@ export function StravaConnect() {
             </p>
             <button className="link text-sm" onClick={() => void disconnect()} disabled={busy !== null}>Disconnect</button>
           </div>
+        ) : availability === 'off' ? (
+          <p className="text-sm text-muted">Strava import isn't switched on for Forge OS yet. Log your runs by hand in the meantime; nothing else changes.</p>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-muted">Runs come in with distance, time, pace, heart rate and climb. Maps and GPS tracks are never imported.</p>
-            <button className="btn-soft w-full" onClick={() => void connect()} disabled={busy !== null}>
-              <Activity className="h-4 w-4" aria-hidden /> {busy === 'connect' ? 'Opening Strava…' : 'Connect Strava'}
+            <button className="btn-soft w-full" onClick={() => void connect()} disabled={busy !== null || availability === 'checking'}>
+              <Activity className="h-4 w-4" aria-hidden /> {busy === 'connect' ? 'Opening Strava…' : availability === 'checking' ? 'Checking Strava import…' : 'Connect Strava'}
             </button>
           </div>
         )}

@@ -99,6 +99,11 @@ Render's free instances sleep after about 15 minutes without traffic and can tak
 
 ## 3. Strava
 
+Optional. Without `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` the server reports `"strava": false`
+and Profile says "Strava import isn't switched on for Forge OS yet" instead of offering to connect.
+Everything else works; runs are logged by hand. The same goes for `ANTHROPIC_API_KEY`: without it the
+coach gives its rule-based answers on the device.
+
 1. Create an application at <https://www.strava.com/settings/api>.
    - **Authorization Callback Domain:** `forge-os-black.vercel.app` (the domain only, no `https://`).
    - Copy the **Client ID** and **Client Secret** to Render as `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET`.

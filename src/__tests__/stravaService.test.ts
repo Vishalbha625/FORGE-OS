@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getAll, putRecord, wipeAll } from '../db/database';
 import type { RunRecord, Settings } from '../db/types';
 import {
-  connectStrava, disconnectStrava, exchangeStravaCode, mapStravaActivity, planImport, sanitizeTitle, syncActivities, syncSummary, type StravaActivity,
+  connectStrava, disconnectStrava, exchangeStravaCode, getStravaAvailability, mapStravaActivity, planImport, sanitizeTitle, syncActivities, syncSummary, type StravaActivity,
 } from '../lib/stravaService';
 
 const API = { baseUrl: 'https://coach.test', accessToken: 'tok' };
@@ -137,5 +137,19 @@ describe('stravaService', () => {
     expect(JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body))).toEqual({ code: 'c0de', state: 'abc', scope: 'read,activity:read' });
     expect((await getAll('settings'))[0].strava).toEqual({ connected: true, athleteName: 'Vishal Bhardwaj' });
     expect(await exchangeStravaCode(API, 'wrong', 'abc')).toEqual({ connected: false, error: 'bad' });
+  });
+  it('asks the server whether Strava import is switched on', async () => {
+    const answer = (body: unknown, status = 200) => vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(body), { status })));
+    answer({ ok: true, push: false, strava: false });
+    expect(await getStravaAvailability('https://coach.test')).toBe('off');
+    answer({ ok: true, strava: true });
+    expect(await getStravaAvailability('https://coach.test')).toBe('on');
+    // An older server without the flag, an error, or no answer: unknown, so the app still offers to try.
+    answer({ ok: true });
+    expect(await getStravaAvailability('https://coach.test')).toBe('unknown');
+    answer({ error: 'x' }, 502);
+    expect(await getStravaAvailability('https://coach.test')).toBe('unknown');
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
+    expect(await getStravaAvailability('https://coach.test')).toBe('unknown');
   });
 });

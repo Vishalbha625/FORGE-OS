@@ -206,6 +206,26 @@ async function writeStrava(patch: Settings['strava']): Promise<void> {
   await putRecord('settings', { ...s, strava: patch, updatedAt: nowISO() });
 }
 
+/**
+ * Is Strava import switched on for this coach server? 'off' when the server
+ * says so (no Strava app keys yet); 'unknown' when it can't be reached in
+ * time (a free Render instance waking up), so the app can still offer to try.
+ */
+export async function getStravaAvailability(baseUrl: string, timeoutMs = 15_000): Promise<'on' | 'off' | 'unknown'> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${baseUrl}/api/health`, { signal: ctrl.signal });
+    const body = (await res.json().catch(() => ({}))) as { strava?: unknown };
+    if (!res.ok) return 'unknown';
+    return body.strava === true ? 'on' : body.strava === false ? 'off' : 'unknown';
+  } catch {
+    return 'unknown';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Sends the browser to Strava's consent screen. Resolves with an error if the server can't start it. */
 export async function connectStrava(api: StravaApi, go: (url: string) => void = (u) => window.location.assign(u)): Promise<{ error?: string }> {
   const res = await call<{ url?: unknown }>(api, 'GET', '/api/strava/auth-url');
