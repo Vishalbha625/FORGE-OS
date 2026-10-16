@@ -1,7 +1,7 @@
 {
   "name": "forge-os",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Forge OS — a personal AI athlete assistant for HYROX, running, strength, nutrition and recovery.",
   "author": "Vishal Bhardwaj",

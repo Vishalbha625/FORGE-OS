@@ -95,6 +95,6 @@ describe('new user journey', () => {
     expect(state.data.plannedWorkouts.length).toBeGreaterThan(90);
 
     const settings = textOf(renderPage(ProfilePage, '/profile'));
-    for (const section of ['Reminders', 'Meal logging (3 a day)', 'Appearance', 'About', 'Version 1.0.0', 'Export my data']) expect(settings).toContain(section);
+    for (const section of ['Reminders', 'Meal logging (3 a day)', 'Appearance', 'About', 'Version 1.1.0', 'Export my data']) expect(settings).toContain(section);
   });
 });

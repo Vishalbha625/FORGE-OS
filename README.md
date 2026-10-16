@@ -85,7 +85,8 @@ To set it up by hand instead:
    `VITE_COACH_URL`.
 
 Render's free tier sleeps when idle, so the first question after a while can take ~30 s; the app
-falls back to the rule-based coach if the request fails.
+falls back to the rule-based coach if the request fails. Push notifications and Strava import need a
+few more variables on Render (Supabase, VAPID and Strava keys): see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Community accounts (Supabase Auth)
 
@@ -93,7 +94,8 @@ Health features never need an account. Only `/community` asks you to sign in. Si
 community session and never deletes anything on the device.
 
 1. Create a Supabase project and run `supabase/schema.sql`, `supabase/storage.sql`, `supabase/photos.sql`,
-   `supabase/social.sql` and `supabase/unblock.sql` (in that order) in its SQL editor.
+   `supabase/social.sql`, `supabase/unblock.sql`, `supabase/push.sql`, `supabase/notifications.sql` and
+   `supabase/strava.sql` (in that order) in its SQL editor.
 2. Vercel environment: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Supabase → Project settings →
    API; the anon key is public by design, RLS enforces access). Redeploy: Vite bakes these in at build time.
 3. Supabase → Authentication → URL configuration: Site URL `https://forge-os-black.vercel.app`, and add
@@ -193,7 +195,7 @@ Unit tests (`npm test`) and a headless-browser end-to-end run confirm, among oth
 - ✅ Social post publishes with an explicit privacy setting
 - ✅ Export/import without silent duplication
 - ✅ Every visible button performs its action
-- ✅ No automated accessibility violations (axe, WCAG 2.1 AA) on 26 screens in both themes
+- ✅ No automated accessibility violations (axe, WCAG 2.1 AA) on 29 screens in both themes
 - ✅ Installs as a PWA and reopens offline with your data
 
 ---
@@ -208,11 +210,16 @@ and the app is **honest about it** (it never pretends an integration is active):
    [Community accounts](#community-accounts-supabase-auth). Health data never goes there.
 2. **AI coach** (free-form answers) → the coach server with a **server-side** API key
    (never in frontend code). The built-in coach is rule-based and needs no key.
-3. **Device / health sync** (steps, sleep, HR, HRV, GPS routes) → platform APIs and your
-   authorization: Apple Health & Health Connect (native app), Garmin / Fitbit / Strava
-   (developer API access + OAuth). Until connected, data is manual and source-labelled.
-4. **Background push reminders** → notification permission + a push service. Reminder
-   preferences & quiet hours are configurable now; delivery needs that service.
+3. **Device / health sync** (steps, sleep, HR, HRV) → platform APIs and your authorization:
+   Apple Health & Health Connect (native app), Garmin / Fitbit (developer API access + OAuth).
+   Until connected, data is manual and source-labelled.
+4. **Strava import** (runs, strength, Crossfit) → the coach server with a Strava API application.
+   The tokens stay on the server; activities are stored on the device only.
+5. **Push notifications** (reminders and community updates while the app is closed) → the coach
+   server with VAPID keys. The notification centre (`/notifications`) needs only Supabase.
+
+Step by step for all of these: [DEPLOYMENT.md](DEPLOYMENT.md). What changed in each release:
+[CHANGELOG.md](CHANGELOG.md).
 
 See **Profile → Setup notes & limitations** inside the app for the same summary.
 
@@ -227,10 +234,11 @@ src/
   store/         AppContext.tsx (in-memory store + persistence) · appData.ts (load, snapshot, plan rebuild) · AuthContext.tsx · toast.tsx
   components/    ui.tsx · charts.tsx · Layout.tsx (nav + quick-action FAB) · ErrorBoundary.tsx · Skeleton.tsx · PageTransition.tsx
   features/      onboarding · dashboard · training · nutrition · community · profile ·
-                 coach · analytics · health (sleep/steps/body/recovery/hydration) · logging · auth
+                 coach · analytics · health (sleep/steps/body/recovery/hydration) · logging · auth ·
+                 notifications · settings (push, Strava)
   __tests__/     unit tests · integration/ (user journeys)
-server/          coach-server.mjs (AI coach API, also serves dist/ for npm start)
-supabase/        schema, storage, photos, social, unblock SQL · tests/ (RLS + PostgREST)
+server/          coach-server.mjs (entry) · app.mjs (routes, CORS, static) · coach.mjs · auth.mjs · push.mjs · strava.mjs
+supabase/        schema, storage, photos, social, unblock, push, notifications, strava SQL · tests/ (RLS + PostgREST)
 .github/         workflows/ci.yml
 ```
 
