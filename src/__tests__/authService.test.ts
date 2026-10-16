@@ -7,6 +7,7 @@ import { getSupabase } from '../lib/supabase';
 import {
   signUpWithEmail, signInWithEmail, signOut, updatePassword, mapAuthError, notifyAuthLinked, AUTH_LINKED_EVENT,
 } from '../lib/authService';
+import { returnPath } from '../features/auth/AuthShell';
 
 const mockedGetSupabase = vi.mocked(getSupabase);
 const user = { id: 'user-1', email: 'vishal@example.com', user_metadata: { display_name: 'Vishal' } };
@@ -111,5 +112,16 @@ describe('authService', () => {
     const event = dispatch.mock.calls[0][0] as CustomEvent<{ supabaseUserId: string }>;
     expect(event.type).toBe(AUTH_LINKED_EVENT);
     expect(event.detail).toEqual({ supabaseUserId: 'user-1' });
+  });
+});
+
+describe('returnPath (where sign-in goes back to)', () => {
+  const at = (from: unknown) => returnPath({ state: { from } });
+  it('goes back to a page on this site', () => {
+    expect(at('/community/post/abc?x=1')).toBe('/community/post/abc?x=1');
+    expect(returnPath({ state: null })).toBe('/');
+  });
+  it('never leaves the site, even through backslashes or control characters', () => {
+    for (const evil of ['//evil.com', '/\\evil.com', '/\\\\evil.com', '/\t/evil.com', 'https://evil.com', 'evil.com', 42]) expect(at(evil)).toBe('/');
   });
 });

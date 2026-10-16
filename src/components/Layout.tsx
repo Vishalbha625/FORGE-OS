@@ -94,7 +94,7 @@ export function AppHeader({ title, subtitle, right }: { title: string; subtitle?
 
 function BottomNav() {
   return (
-    <nav aria-label="Main" className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/80 backdrop-blur-md">
+    <nav aria-label="Main" className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background">
       <div className="mx-auto grid max-w-md grid-cols-5">
         {TABS.map((t) => (
           <NavLink
@@ -135,7 +135,7 @@ function QuickActionFab() {
   return (
     <>
       {open && <div className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm animate-fade" onClick={() => setOpen(false)} />}
-      <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-2" style={{ right: 'max(1rem, calc((100vw - 28rem) / 2 + 1rem))' }}>
+      <aside aria-label="Quick log actions" className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-2" style={{ right: 'max(1rem, calc((100vw - 28rem) / 2 + 1rem))' }}>
         {open && (
           <div className="mb-1 grid grid-cols-3 gap-2 animate-rise" role="menu" aria-label="Quick log">
             {QUICK.map((q) => {
@@ -166,7 +166,7 @@ function QuickActionFab() {
         >
           <Plus className={`h-6 w-6 transition-transform duration-200 motion-reduce:transition-none ${open ? 'rotate-45' : ''}`} aria-hidden />
         </button>
-      </div>
+      </aside>
     </>
   );
 }

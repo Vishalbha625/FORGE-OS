@@ -1,0 +1,70 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # @supabase/supabase-js 2.118 needs Node 22+ (native WebSocket).
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: TypeScript check
+        run: npx tsc --noEmit
+      - name: Unit and integration tests
+        run: npx vitest run --reporter=verbose
+      - name: Build
+        run: npm run build
+      - name: Bundle size check
+        run: |
+          MAIN_SIZE=$(stat -c%s dist/assets/index-*.js 2>/dev/null || echo 0)
+          MAX_SIZE=153600
+          if [ "$MAIN_SIZE" -eq 0 ]; then
+            echo "::error::Main bundle not found in dist/assets"
+            exit 1
+          fi
+          if [ "$MAIN_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "::error::Main bundle ($MAIN_SIZE bytes) exceeds 150 KB limit"
+            exit 1
+          fi
+          echo "Main bundle: $MAIN_SIZE bytes (limit: $MAX_SIZE)"
+      - name: Coach server syntax check
+        run: node --check server/coach-server.mjs
+
+  database:
+    # Row-level security against real Postgres, and the community service
+    # against a real PostgREST over the same schema.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      POSTGREST_VERSION: v12.2.3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install PostgREST
+        run: |
+          curl -fsSL "https://github.com/PostgREST/postgrest/releases/download/${POSTGREST_VERSION}/postgrest-${POSTGREST_VERSION}-linux-static-x64.tar.xz" | tar -xJ -C "$RUNNER_TEMP"
+          "$RUNNER_TEMP/postgrest" --version
+      - name: RLS tests
+        run: bash supabase/tests/run.sh
+      - name: Community service against PostgREST
+        run: POSTGREST="$RUNNER_TEMP/postgrest" bash supabase/tests/api.sh

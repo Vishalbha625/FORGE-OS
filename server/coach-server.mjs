@@ -292,7 +292,10 @@ async function serveStatic(req, res) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost');
 
-  // CORS on every response (writeHead merges these with its own headers).
+  // Baseline hardening and CORS on every response (writeHead merges these with its own headers).
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
   if (ALLOWED_ORIGINS.length) res.setHeader('Vary', 'Origin');
   for (const [k, v] of Object.entries(corsHeaders(req))) res.setHeader(k, v);
 

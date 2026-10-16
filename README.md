@@ -1,5 +1,7 @@
 # 🔥 Forge OS — Personal AI Athlete Assistant
 
+[![CI](https://github.com/Vishalbha625/FORGE-OS/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Vishalbha625/FORGE-OS/actions/workflows/ci.yml)
+
 A complete, functional, **mobile-first** athlete platform for HYROX, running, strength,
 nutrition, sleep, steps, hydration, body metrics, recovery, progress analytics and a
 fitness community — built as a **local-first Progressive Web App**.
@@ -8,8 +10,9 @@ Open it on your phone, understand your status in seconds, and log most daily act
 in one or two taps.
 
 > Built with React + TypeScript + Tailwind + IndexedDB. No account or server required to
-> use the full personal platform. Multi-user social and device sync are clearly marked as
-> needing external setup (see [below](#-features-that-need-external-setup)).
+> use the full personal platform. The community runs on Supabase and the AI coach on a small
+> Node server; device sync is clearly marked as needing external setup
+> (see [below](#-features-that-need-external-setup)).
 
 ---
 
@@ -21,10 +24,11 @@ npm start         # build + run everything on http://localhost:8787 (app + AI co
 # or, while developing:
 npm run dev       # hot-reload UI at http://localhost:5173
 npm run server    # (second terminal) coach API on :8787 — the dev UI proxies /api to it
-npm test          # unit tests (152): calculations, plan, coach, analytics, reminders, community services, components
+npm test          # 180 unit and integration tests (see "Quality checks and CI" below)
 ```
 
-Requirements: Node 18+ (built & tested on Node 22).
+Requirements: **Node 22+**. `@supabase/supabase-js` 2.118 needs Node's built-in WebSocket, which
+Node 20 doesn't have.
 
 ### Turn on the AI coach (optional)
 
@@ -104,6 +108,31 @@ Database checks: `bash supabase/tests/run.sh` runs the row-level security tests 
 `bash supabase/tests/api.sh` runs the community service against a real PostgREST 12 over the same schema
 (set `POSTGREST=/path/to/postgrest` if it isn't on your PATH).
 
+### Quality checks and CI
+
+Every push and pull request to `main` runs [GitHub Actions](.github/workflows/ci.yml) on Node 22:
+
+| Job | What it checks |
+|---|---|
+| `quality` | `tsc --noEmit` (strict, no `any`), all unit and integration tests, `npm run build`, main bundle under 150 KB, coach server syntax |
+| `database` | the row-level security tests on a real Postgres (`supabase/tests/run.sh`) and the community service against a real PostgREST 12 (`supabase/tests/api.sh`) |
+
+The integration tests in `src/__tests__/integration/` walk whole journeys through the same code the
+screens use: a new member from sign-up to their first charts, posting with photos, kudos, comments and
+offline posting, follows, blocks and reports, the coach in rule-based and AI mode, and the data rules
+(R1 health data stays on the device, R2 missing is undefined, R3 planned and actual stay separate,
+backups hold only your own data). Health data lives in a real IndexedDB (fake-indexeddb); the community
+backend is an in-memory stand-in (`fakeBackend.ts`) that applies the same access rules as the SQL policies,
+which are themselves tested against real Postgres in the `database` job.
+
+To run everything CI runs, locally:
+
+```bash
+npx tsc --noEmit && npx vitest run && npm run build
+bash supabase/tests/run.sh                                  # needs Postgres server binaries
+POSTGREST=/path/to/postgrest bash supabase/tests/api.sh     # needs PostgREST v12
+```
+
 ### Install on your phone (PWA)
 
 1. Deploy `dist/` to any static host (Netlify, Vercel, GitHub Pages, Cloudflare Pages) — or
@@ -164,6 +193,8 @@ Unit tests (`npm test`) and a headless-browser end-to-end run confirm, among oth
 - ✅ Social post publishes with an explicit privacy setting
 - ✅ Export/import without silent duplication
 - ✅ Every visible button performs its action
+- ✅ No automated accessibility violations (axe, WCAG 2.1 AA) on 26 screens in both themes
+- ✅ Installs as a PWA and reopens offline with your data
 
 ---
 
@@ -172,10 +203,10 @@ Unit tests (`npm test`) and a headless-browser end-to-end run confirm, among oth
 The personal platform is fully functional offline. These require configuration you provide —
 and the app is **honest about it** (it never pretends an integration is active):
 
-1. **Multi-user social network** (other real athletes, follows, cross-device sync) →
-   a backend such as **Supabase**: auth, Postgres, row-level security, file storage.
-   The current feed is intentionally local-first and shows *no fake users*.
-2. **LLM-powered coach** (free-form natural-language answers) → a **server-side** API key
+1. **Community** (feed, photos, kudos, comments, follows, blocks, reports) → a **Supabase** project
+   (auth, Postgres with row-level security, storage). Built and tested; see
+   [Community accounts](#community-accounts-supabase-auth). Health data never goes there.
+2. **AI coach** (free-form answers) → the coach server with a **server-side** API key
    (never in frontend code). The built-in coach is rule-based and needs no key.
 3. **Device / health sync** (steps, sleep, HR, HRV, GPS routes) → platform APIs and your
    authorization: Apple Health & Health Connect (native app), Garmin / Fitbit / Strava
@@ -193,10 +224,14 @@ See **Profile → Setup notes & limitations** inside the app for the same summar
 src/
   db/            types.ts (full data model) · database.ts (IndexedDB CRUD, export/import)
   lib/           dates.ts · calc.ts · plan.ts (plan generator) · coach.ts (rule-based coach) · analytics.ts · reminders.ts · constants.ts
-  store/         AppContext.tsx (in-memory store + persistence) · toast.tsx
+  store/         AppContext.tsx (in-memory store + persistence) · appData.ts (load, snapshot, plan rebuild) · AuthContext.tsx · toast.tsx
   components/    ui.tsx · charts.tsx · Layout.tsx (nav + quick-action FAB) · ErrorBoundary.tsx · Skeleton.tsx · PageTransition.tsx
   features/      onboarding · dashboard · training · nutrition · community · profile ·
-                 coach · analytics · health (sleep/steps/body/recovery/hydration) · logging
+                 coach · analytics · health (sleep/steps/body/recovery/hydration) · logging · auth
+  __tests__/     unit tests · integration/ (user journeys)
+server/          coach-server.mjs (AI coach API, also serves dist/ for npm start)
+supabase/        schema, storage, photos, social, unblock SQL · tests/ (RLS + PostgREST)
+.github/         workflows/ci.yml
 ```
 
 Modular by design, so training, nutrition, social and integrations can evolve independently.

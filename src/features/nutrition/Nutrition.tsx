@@ -138,7 +138,7 @@ export function Nutrition() {
           <span className="text-sm">{(water / 1000).toFixed(1)} L of {(profile.waterTargetMl / 1000).toFixed(1)} L</span>
           <span className="font-montserrat text-sm font-semibold">{Math.round((water / profile.waterTargetMl) * 100)}%</span>
         </div>
-        <div className="mt-2"><Bar pct={(water / profile.waterTargetMl) * 100} /></div>
+        <div className="mt-2"><Bar pct={(water / profile.waterTargetMl) * 100} label="Water of target" /></div>
       </Card>
 
       <Supplements date={date} />

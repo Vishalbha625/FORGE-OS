@@ -22,7 +22,6 @@ import {
   getAll,
   putRecord,
   deleteRecord as dbDelete,
-  bulkPut,
   exportAll,
   importAll,
   wipeAll,
@@ -31,11 +30,11 @@ import {
   type BackupFile,
   type ImportResult,
 } from '../db/database';
-import { generatePlan } from '../lib/plan';
 import { todayISO, DEFAULT_TZ } from '../lib/dates';
 import { auditSummary, stripForAudit } from '../lib/audit';
 import type { Snapshot } from '../lib/coach';
 import { AUTH_LINKED_EVENT, type AuthLinkedDetail } from '../lib/authService';
+import { EMPTY_DATA, loadAppData, makeSnapshot, rebuildPlan } from './appData';
 
 export interface DataArrays {
   plannedWorkouts: PlannedWorkout[];
@@ -58,7 +57,7 @@ const AUDITED: (keyof DataArrays)[] = [
   'sleep', 'steps', 'body', 'recovery',
 ];
 
-interface AppState {
+export interface AppState {
   loading: boolean;
   profile: Profile | null;
   settings: Settings | null;
@@ -78,19 +77,7 @@ interface AppState {
   resetAll: () => Promise<void>;
 }
 
-const emptyData: DataArrays = {
-  plannedWorkouts: [],
-  runs: [],
-  strength: [],
-  hyrox: [],
-  nutrition: [],
-  water: [],
-  sleep: [],
-  steps: [],
-  body: [],
-  recovery: [],
-  social: [],
-};
+const emptyData = EMPTY_DATA;
 
 const AppContext = createContext<AppState | null>(null);
 
@@ -103,17 +90,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [today, setToday] = useState(todayISO(DEFAULT_TZ));
 
   const reload = async () => {
-    const [prof, setts, aud] = await Promise.all([getAll('profile'), getAll('settings'), getAll('audit')]);
-    const stores = Object.keys(emptyData) as (keyof DataArrays)[];
-    const loaded: Partial<DataArrays> = {};
-    for (const s of stores) {
-      loaded[s] = (await getAll(s as StoreName)) as never;
-    }
-    setProfile((prof[0] as Profile) ?? null);
-    setSettings((setts[0] as Settings) ?? null);
-    setAudit((aud as AuditEntry[]).sort((a, b) => b.at.localeCompare(a.at)));
-    setData({ ...emptyData, ...(loaded as DataArrays) });
-    setToday(todayISO((prof[0] as Profile)?.timezone ?? DEFAULT_TZ));
+    const loaded = await loadAppData();
+    setProfile(loaded.profile);
+    setSettings(loaded.settings);
+    setAudit(loaded.audit);
+    setData(loaded.data);
+    setToday(loaded.today);
     setLoading(false);
   };
 
@@ -205,16 +187,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const regeneratePlan = async (startDate: string, raceDate: string) => {
-    const existing = (await getAll('plannedWorkouts')) as PlannedWorkout[];
-    // Days the athlete has edited or moved by hand keep their manual version;
-    // only generated (seed) sessions are rebuilt. Actual logs live in other
-    // stores and are never touched here.
-    const manualDates = new Set(existing.filter((w) => w.source !== 'seed').map((w) => w.eventDate));
-    for (const w of existing) {
-      if (w.source === 'seed') await dbDelete('plannedWorkouts', w.id);
-    }
-    const plan = generatePlan({ startDate, raceDate }).filter((w) => !manualDates.has(w.eventDate));
-    await bulkPut('plannedWorkouts', plan);
+    await rebuildPlan(startDate, raceDate);
     await reload();
   };
 
@@ -229,23 +202,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await reload();
   };
 
-  const snapshot: Snapshot = useMemo(
-    () => ({
-      profile,
-      planned: data.plannedWorkouts,
-      runs: data.runs,
-      strength: data.strength,
-      hyrox: data.hyrox,
-      nutrition: data.nutrition,
-      sleep: data.sleep,
-      steps: data.steps,
-      body: data.body,
-      recovery: data.recovery,
-      water: data.water,
-      today,
-    }),
-    [profile, data, today],
-  );
+  const snapshot: Snapshot = useMemo(() => makeSnapshot(profile, data, today), [profile, data, today]);
 
   const value: AppState = {
     loading,

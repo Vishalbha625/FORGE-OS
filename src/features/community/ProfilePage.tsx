@@ -185,13 +185,14 @@ export function ProfilePage() {
       {back}
       <section className="card p-4" aria-labelledby="profile-name">
         <div className="flex items-start gap-4">
+          {/* Outside the button: a control inside a control confuses screen readers. */}
+          {isMe && <input ref={fileRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => changePhoto(e.target.files?.[0])} />}
           {isMe ? (
             <button className="relative shrink-0 rounded-full" onClick={() => fileRef.current?.click()} aria-label="Change profile photo" disabled={uploading}>
               <Avatar name={profile.display_name} path={profile.avatar_path} size="lg" />
               <span className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border border-border bg-card">
                 {uploading ? <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden /> : <Camera className="h-3.5 w-3.5" aria-hidden />}
               </span>
-              <input ref={fileRef} type="file" accept="image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => changePhoto(e.target.files?.[0])} />
             </button>
           ) : (
             <Avatar name={profile.display_name} path={profile.avatar_path} size="lg" />

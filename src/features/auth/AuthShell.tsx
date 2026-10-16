@@ -28,8 +28,12 @@ export function FormError({ message }: { message: string | null }) {
   return <p role="alert" className="mb-4 rounded-lg border border-bad/40 px-3 py-2.5 text-sm text-bad">{message}</p>;
 }
 
-/** Where to go after signing in: the page that sent us here, else home. */
-export function returnPath(location: Location): string {
+/**
+ * Where to go after signing in: the page that sent us here, else home. Only a
+ * path on this site: no "//host", and no backslashes or control characters,
+ * which browsers can turn into "//host" (an open redirect).
+ */
+export function returnPath(location: Pick<Location, 'state'>): string {
   const from = (location.state as { from?: unknown } | null)?.from;
-  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/';
+  return typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') && !/[\\\u0000-\u001f]/.test(from) ? from : '/';
 }

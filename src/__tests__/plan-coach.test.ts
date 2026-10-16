@@ -113,3 +113,28 @@ describe('AI coach context (summary only, R1)', () => {
     expect(json).not.toContain('PEANUT');
   });
 });
+
+describe('coach quick questions (the chips on the coach page)', () => {
+  it('"How was my week?" gets the weekly summary, not the help text', () => {
+    const a = answerQuestion('How was my week?', snap());
+    expect(a.text).toMatch(/^\*\*Week /);
+    expect(a.text).toContain('Running: 0 km actual');
+  });
+  it('"Suggest tomorrow\'s workout" describes tomorrow from the plan', () => {
+    const tomorrow = plan.find((w) => w.eventDate === '2026-10-15')!;
+    const a = answerQuestion("Suggest tomorrow's workout", snap());
+    expect(a.text).toContain(`Tomorrow (15 Oct 2026, Week 1, Base): **${tomorrow.title}**`);
+  });
+  it('eases tomorrow off after a high-fatigue check-in', () => {
+    const recovery = [{ id: 'r', eventDate: '2026-10-14', fatigue: 4, soreness: 2 }] as Snapshot['recovery'];
+    expect(answerQuestion("Suggest tomorrow's workout", snap({ recovery })).text).toContain('high fatigue, so keep it easy');
+  });
+  it('"What should I eat today?" answers about food, from what is logged', () => {
+    const empty = answerQuestion('What should I eat today?', snap());
+    expect(empty.text).toMatch(/^No meals logged today yet\./);
+    const nutrition = [{ id: 'n', eventDate: '2026-10-14', meal: 'lunch', name: 'Dal', calories: 650, protein: 30 }] as Snapshot['nutrition'];
+    expect(answerQuestion('What should I eat today?', snap({ nutrition })).text).toMatch(/^So far today: 650 kcal and 30 g protein logged\./);
+    // A plain "what's on today?" is still the workout.
+    expect(answerQuestion("What's on today?", snap()).text).toMatch(/^Today \(14 Oct 2026/);
+  });
+});

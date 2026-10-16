@@ -18,7 +18,7 @@ import {
   fmtDate,
   startOfWeek,
 } from './dates';
-import { fmtPace, fmtDuration, mean, round1, round0 } from './calc';
+import { fmtPace, fmtDuration, fmtHrsMins, mean, round1, round0 } from './calc';
 
 export interface Snapshot {
   profile: Profile | null;
@@ -188,17 +188,24 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
     return { text: 'Finish onboarding first so I can use your profile and plan.', tags: ['missing'] };
   }
 
+  const aboutFood = /\b(eat|meal|food|protein|calorie|kcal|snack|diet)/.test(t);
+
+  // Tomorrow's workout: the plan, eased off when recovery says so.
+  if (/tomorrow/.test(t) && !aboutFood) {
+    const day = addDays(today, 1);
+    const p = onDay(s.planned, day)[0];
+    const caution = recoveryCaution(s);
+    if (!p || p.types.includes('rest')) {
+      return { text: `Nothing is planned for tomorrow (${fmtDate(day)}). Take the rest, or an easy 30 to 40 minute run if you feel fresh.${caution ? ` ${caution}` : ''}`, tags: ['fact', 'suggestion'] };
+    }
+    return { text: `${describePlanned(p, 'Tomorrow', day)}${caution ? `\n${caution}` : ''}`, tags: caution ? ['fact', 'suggestion'] : ['fact'] };
+  }
+
   // Today's / yesterday's workout
-  if (/(workout|train).*(today)|today.*(workout|train)|what.*today/.test(t)) {
+  if (/(workout|train|session).*(today)|today.*(workout|train|session)/.test(t) || (/what.*today/.test(t) && !aboutFood)) {
     const p = onDay(s.planned, today)[0];
     if (!p) return { text: `No session is planned for today (${fmtDate(today)}). This may be a rest day or outside your plan window.`, tags: ['fact'] };
-    const runBits = p.runs.map((r) => `${r.kind} run ${r.distanceKm ?? '?'} km (RPE ${r.targetRPE ?? '-'})`).join(', ');
-    const lift = p.exercises.length ? `${p.exercises.length} strength exercises (${[...new Set(p.exercises.map((e) => e.group))].join(', ')})` : '';
-    const hx = p.hyroxStations.length ? `HYROX: ${p.hyroxStations.map((h) => h.station).join(', ')}` : '';
-    return {
-      text: `Today (${fmtDate(today)}, Week ${p.weekIndex}, ${p.phase}): **${p.title}**.\n${[runBits, lift, hx].filter(Boolean).join('\n')}\nFocus: ${p.focus}.`,
-      tags: ['fact'],
-    };
+    return { text: describePlanned(p, 'Today', today), tags: ['fact'] };
   }
   if (/yesterday/.test(t)) {
     const y = addDays(today, -1);
@@ -304,7 +311,7 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
   }
 
   // Summarize last 7 days
-  if (/summar.*(7|seven|week|last)|last 7 days/.test(t)) {
+  if (/summar.*(7|seven|week|last)|last 7 days|how (was|is|did|has) (my|this|the) week|weekly (review|report|summary)/.test(t)) {
     const rep = generateWeeklyReport(s);
     return { text: summarizeReport(rep), tags: ['calculation'] };
   }
@@ -320,6 +327,20 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
   if (/(eat|meal).*(after|post|before|pre).*(run|train|workout)|what.*eat/.test(t)) {
     const n = onDay(s.nutrition, today);
     const remaining = s.profile.calorieTarget ? s.profile.calorieTarget - n.reduce((a, x) => a + (x.calories ?? 0), 0) : undefined;
+    const timed = /after|post|before|pre/.test(t);
+    if (!timed) {
+      // A whole-day question: what's logged so far, against the targets.
+      const kcal = round0(n.reduce((a, x) => a + (x.calories ?? 0), 0));
+      const prot = round0(n.reduce((a, x) => a + (x.protein ?? 0), 0));
+      const so = n.length
+        ? `So far today: ${kcal} kcal and ${prot} g protein logged${s.profile.calorieTarget ? ` of ${s.profile.calorieTarget} kcal` : ''}${s.profile.proteinTarget ? ` and ${s.profile.proteinTarget} g protein` : ''}.`
+        : 'No meals logged today yet.';
+      const session = onDay(s.planned, today)[0];
+      const fuel = session && !session.types.includes('rest')
+        ? `With ${session.title.toLowerCase()} today, have easy carbs 1 to 2 h before and protein with carbs within an hour after.`
+        : 'On a lighter day, build each meal around protein (paneer, tofu, dal, curd or eggs) with vegetables and whole grains.';
+      return { text: `${so} ${fuel}`, tags: n.length ? ['calculation', 'suggestion'] : ['missing', 'suggestion'] };
+    }
     const pre = /before|pre/.test(t);
     const base = pre
       ? 'Before a run/tempo: easy carbs 1–2 h before (banana and oats, toast with honey, or a few dates). Keep fat/fibre low to avoid GI distress.'
@@ -340,6 +361,27 @@ export function answerQuestion(q: string, s: Snapshot): CoachAnswer {
       "I can answer from your logged data. Try: \"What's my workout today?\", \"How many km this week?\", \"How much protein today?\", \"Am I on track for HYROX?\", \"Summarize my last 7 days\", or \"What should I eat after training?\". I only use data you've logged, I won't invent workouts, meals or metrics.",
     tags: ['suggestion'],
   };
+}
+
+/** A planned session in words: title, runs, lifts, HYROX stations and focus. */
+function describePlanned(p: PlannedWorkout, label: string, day: string): string {
+  const runBits = p.runs.map((r) => `${r.kind} run ${r.distanceKm ?? '?'} km (RPE ${r.targetRPE ?? '-'})`).join(', ');
+  const lift = p.exercises.length ? `${p.exercises.length} strength exercises (${[...new Set(p.exercises.map((e) => e.group))].join(', ')})` : '';
+  const hx = p.hyroxStations.length ? `HYROX: ${p.hyroxStations.map((h) => h.station).join(', ')}` : '';
+  return `${label} (${fmtDate(day)}, Week ${p.weekIndex}, ${p.phase}): **${p.title}**.\n${[runBits, lift, hx].filter(Boolean).join('\n')}\nFocus: ${p.focus}.`;
+}
+
+/** A note to ease off when the latest check-in (today or yesterday) or last night's sleep says so. */
+function recoveryCaution(s: Snapshot): string | undefined {
+  const latest = [...s.recovery].filter((r) => r.eventDate <= s.today && r.eventDate >= addDays(s.today, -1)).sort((a, b) => b.eventDate.localeCompare(a.eventDate))[0];
+  if (latest && ((latest.fatigue ?? 0) >= 4 || (latest.soreness ?? 0) >= 4)) {
+    return `Your latest check-in shows high ${(latest.fatigue ?? 0) >= 4 ? 'fatigue' : 'soreness'}, so keep it easy or swap in easy aerobic work.`;
+  }
+  const night = [...s.sleep].filter((x) => x.eventDate <= s.today).sort((a, b) => b.eventDate.localeCompare(a.eventDate))[0];
+  if (night && night.eventDate >= addDays(s.today, -1) && night.durationMin < 360) {
+    return `You slept ${fmtHrsMins(night.durationMin)} last night, so keep the effort easy if you still feel flat.`;
+  }
+  return undefined;
 }
 
 function summarizeReport(r: WeeklyReport): string {
