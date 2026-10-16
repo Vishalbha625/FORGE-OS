@@ -24,6 +24,7 @@ let current: SupabaseClient | null = null;
 vi.mock('../lib/supabase', () => ({ getSupabase: () => current }));
 
 import * as svc from '../lib/communityService';
+import * as nsvc from '../lib/notificationService';
 
 const tokens: Record<string, string> = {};
 const sign = (claims: Record<string, string>) => new SignJWT(claims).setProtectedHeader({ alg: 'HS256' }).setExpirationTime('1h').sign(SECRET);
@@ -220,5 +221,21 @@ describe.skipIf(!API)('communityService against PostgREST + RLS', () => {
     await as(ALICE);
     must(await svc.unblockUser(ALICE, BOB));
     expect(must(await svc.getBlockedUsers(ALICE))).toEqual([]);
+  });
+  it('notifications: created through RLS, listed with actor and post title, deduplicated, read', async () => {
+    await as(BOB);
+    expect(must(await nsvc.createNotification('kudos_received', BOB, ALICE, a1.id))).toBe('created');
+    expect(must(await nsvc.createNotification('kudos_received', BOB, ALICE, a1.id))).toBe('skipped'); // within 5 minutes
+    expect(must(await nsvc.createNotification('follow_accepted', BOB, ALICE))).toBe('skipped'); // never happened
+    expect(must(await nsvc.fetchNotifications(BOB)).data).toEqual([]); // the sender can't read it back
+    await as(ALICE);
+    const list = must(await nsvc.fetchNotifications(ALICE));
+    const title = must(await svc.getPost(a1.id, ALICE)).title; // renamed by an earlier test
+    expect(list.data.map((n) => [n.type, n.actor.display_name, n.postTitle, n.read])).toEqual([['kudos_received', 'Bob', title, false]]);
+    expect(must(await nsvc.getUnreadCount(ALICE))).toBe(1);
+    must(await nsvc.markAsRead(list.data[0].id, ALICE));
+    expect(must(await nsvc.getUnreadCount(ALICE))).toBe(0);
+    must(await nsvc.deleteNotification(list.data[0].id, ALICE));
+    expect(must(await nsvc.fetchNotifications(ALICE)).data).toEqual([]);
   });
 });

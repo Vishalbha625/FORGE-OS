@@ -272,5 +272,76 @@ do $$ begin
 exception when insufficient_privilege then null; end $$;
 commit;
 
+\echo '22. notifications: only the recipient reads them, and only flips "read"'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'bob', true) \gset
+insert into public.kudos (post_id, user_id) select id, auth.uid() from public.posts where title = 'Public HYROX sim' on conflict do nothing;
+insert into public.notifications (user_id, actor_id, type, post_id)
+  select '11111111-1111-1111-1111-111111111111', auth.uid(), 'kudos_received', id from public.posts where title = 'Public HYROX sim';
+do $$ begin assert (select count(*) from public.notifications) = 0, 'the sender read the notification he sent'; end $$;
+commit;
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'alice', true) \gset
+do $$ begin assert (select count(*) from public.notifications where read = false) = 1, 'alice should have one unread notification'; end $$;
+update public.notifications set read = true where user_id = auth.uid();
+do $$ begin assert (select bool_and(read) from public.notifications), 'alice could not mark her notification read'; end $$;
+do $$ begin
+  update public.notifications set actor_id = '33333333-3333-3333-3333-333333333333';
+  raise exception 'FAIL: alice rewrote who a notification is from';
+exception when insufficient_privilege then null; end $$;
+commit;
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'carol', true) \gset
+do $$ begin assert (select count(*) from public.notifications) = 0, 'carol read alice''s notifications'; end $$;
+commit;
+begin; set local role anon; select set_config('request.jwt.claim.sub', '', true) \gset
+do $$ begin
+  perform 1 from public.notifications;
+  raise exception 'FAIL: anonymous caller read notifications';
+exception when insufficient_privilege then null; end $$;
+commit;
+
+\echo '23. notifications: only about something you really did, as yourself, once per 5 minutes'
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'bob', true) \gset
+do $$ begin
+  insert into public.notifications (user_id, actor_id, type, post_id)
+    select '11111111-1111-1111-1111-111111111111', auth.uid(), 'kudos_received', id from public.posts where title = 'Public HYROX sim';
+  raise exception 'FAIL: the same kudos notified twice within 5 minutes';
+exception when insufficient_privilege then null; end $$;
+do $$ begin
+  insert into public.notifications (user_id, actor_id, type) values (auth.uid(), '11111111-1111-1111-1111-111111111111', 'follow_accepted');
+  raise exception 'FAIL: bob created a notification in alice''s name';
+exception when insufficient_privilege then null; end $$;
+do $$ begin
+  insert into public.notifications (user_id, actor_id, type) values ('11111111-1111-1111-1111-111111111111', auth.uid(), 'follow_accepted');
+  raise exception 'FAIL: bob announced an acceptance that never happened';
+exception when insufficient_privilege then null; end $$;
+do $$ begin
+  assert not public.notification_allowed('follow_accepted', '11111111-1111-1111-1111-111111111111', auth.uid(), null, null), 'the check answered about someone else''s action';
+end $$;
+commit;
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'alice', true) \gset
+-- bob follows alice (accepted earlier): alice may tell him so
+insert into public.notifications (user_id, actor_id, type) values ('22222222-2222-2222-2222-222222222222', auth.uid(), 'follow_accepted');
+commit;
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'carol', true) \gset
+do $$ begin
+  insert into public.notifications (user_id, actor_id, type) values ('11111111-1111-1111-1111-111111111111', auth.uid(), 'follow_request');
+  raise exception 'FAIL: a blocked user notified alice';
+exception when insufficient_privilege then null; end $$;
+commit;
+-- A block after the event still stops the notification.
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'bob', true) \gset
+insert into public.comments (post_id, author_id, body) select id, auth.uid(), 'Nice one' from public.posts where title = 'Public HYROX sim';
+commit;
+select set_config('test.cid', id::text, false), set_config('test.pid', post_id::text, false) from public.comments where body = 'Nice one' \gset
+insert into public.blocks (blocker_id, blocked_id) values (:'alice', :'bob');
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'bob', true) \gset
+do $$ begin
+  insert into public.notifications (user_id, actor_id, type, post_id, comment_id)
+    values ('11111111-1111-1111-1111-111111111111', auth.uid(), 'comment_received', current_setting('test.pid')::uuid, current_setting('test.cid')::uuid);
+  raise exception 'FAIL: bob notified alice after she blocked him';
+exception when insufficient_privilege then null; end $$;
+commit;
+delete from public.blocks where blocker_id = :'alice' and blocked_id = :'bob';
+do $$ begin assert (select count(*) from public.notifications) = 2, 'expected exactly the two genuine notifications'; end $$;
+
 \echo ''
 \echo 'ALL RLS TESTS PASSED'

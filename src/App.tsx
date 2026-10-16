@@ -41,6 +41,7 @@ const ForgotPasswordPage = page(() => import('./features/auth/ForgotPasswordPage
 const AuthCallbackPage = page(() => import('./features/auth/AuthCallbackPage'), 'AuthCallbackPage');
 const ResetPasswordPage = page(() => import('./features/auth/ResetPasswordPage'), 'ResetPasswordPage');
 const NotFoundPage = page(() => import('./features/notfound/NotFoundPage'), 'NotFoundPage');
+const NotificationsPage = page(() => import('./features/notifications/NotificationsPage'), 'NotificationsPage');
 
 type Shape = 'page' | 'charts' | 'feed';
 
@@ -137,6 +138,7 @@ function MainApp() {
             <Route path="/community/profile/:userId/followers" element={community(<FollowersListPage />)} />
             <Route path="/community/profile/:userId/following" element={community(<FollowersListPage />)} />
             <Route path="/community/*" element={<Navigate to="/community" replace />} />
+            <Route path="/notifications" element={community(<NotificationsPage />)} />
             <Route path="/profile" element={<Section name="settings"><Profile /></Section>} />
             <Route path="/coach" element={<Section name="coach"><Coach /></Section>} />
             <Route path="/analytics" element={<Section name="analytics" shape="charts"><AnalyticsPage /></Section>} />

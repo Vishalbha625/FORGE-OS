@@ -145,7 +145,7 @@ export function PostDetailPage() {
     }
     const saved = res.data;
     setComments((c) => c.map((x) => (x.id === id ? saved : x)));
-    if (post) notifySocial('comment_received', post.author_id, post.id);
+    if (post) notifySocial('comment_received', post.author_id, post.id, saved.id);
   };
 
   const removeComment = async (c: ShownComment) => {

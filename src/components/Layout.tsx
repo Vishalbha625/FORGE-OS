@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { Home, Dumbbell, Utensils, Users, User, Plus, Sparkles, type LucideIcon } from 'lucide-react';
 import { useLog, type LogKind } from '../features/logging/QuickLog';
 import { ReminderRunner } from './ReminderRunner';
 import { PushRuntime } from '../features/settings/PushRuntime';
+
+// Lazy: the bell needs the community service, which stays out of the main bundle.
+const NotificationBell = lazy(() => import('../features/notifications/NotificationBell').then((m) => ({ default: m.NotificationBell })));
 import { ThemeSwitcher } from '../store/theme';
 import { LOG_ICONS } from './icons';
 
@@ -73,6 +76,9 @@ function Navbar() {
           <Logo />
         </Link>
         <div className="flex items-center gap-1">
+          <Suspense fallback={null}>
+            <NotificationBell />
+          </Suspense>
           <ThemeSwitcher />
           <button onClick={() => nav('/coach')} className="btn-outline h-9 px-3" aria-label="Open coach">
             <Sparkles className="h-4 w-4" aria-hidden /> Coach

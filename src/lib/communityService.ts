@@ -165,11 +165,11 @@ export function friendlyError(err: unknown, status?: number): string {
  * with backoff. Client errors (bad input, RLS, duplicates) come back as a
  * result and never trip the circuit; only network and server failures do.
  */
-async function run<T = unknown>(
+export async function run<T = unknown>(
   // Rows are typed by the caller: there is no generated database schema, and
   // the JSON shape is checked by the toX() mappers below.
   op: (client: SupabaseClient) => PromiseLike<ApiResponse<unknown>>,
-  opts: { write?: boolean; allowDuplicate?: boolean } = {},
+  opts: { write?: boolean; allowDuplicate?: boolean; onForbidden?: T } = {},
 ): Promise<ServiceResult<T>> {
   const client = getSupabase();
   if (!client) return fail(NOT_CONFIGURED);
@@ -185,6 +185,8 @@ async function run<T = unknown>(
     });
     // A retried insert whose first attempt landed: the row exists, which is what we wanted.
     if (res.error && opts.allowDuplicate && isDuplicate(res.error)) return ok(res.data as T);
+    // Refused by row-level security, and the caller expects that sometimes.
+    if (res.error && opts.onForbidden !== undefined && (res.error.code === '42501' || statusOf(res) === 403)) return ok(opts.onForbidden);
     if (res.error) return fail(friendlyError(res.error, statusOf(res)));
     return ok(res.data as T);
   } catch (err) {
@@ -207,13 +209,13 @@ const newId = () => crypto.randomUUID();
 
 // ── Row mapping (database nulls become undefined) ────────────────────────────
 
-const PROFILE_COLS = 'id, display_name, bio, goals, avatar_path, created_at';
+export const PROFILE_COLS = 'id, display_name, bio, goals, avatar_path, created_at';
 // Foreign keys are named: posts and comments also reach profiles through kudos,
 // comments and reports, which PostgREST would otherwise reject as ambiguous.
 const POST_SELECT = `*, author:profiles!posts_author_id_fkey(${PROFILE_COLS}), kudos(count), comments(count), my_kudos:kudos(user_id)`;
 const COMMENT_SELECT = `id, post_id, author_id, body, created_at, author:profiles!comments_author_id_fkey(${PROFILE_COLS})`;
 
-interface ProfileRow {
+export interface ProfileRow {
   id: string;
   display_name: string;
   bio: string | null;
@@ -328,12 +330,12 @@ export function parseCursor(cursor: string): { createdAt: string; id: string } |
 }
 
 /** PostgREST filter for the rows after the cursor, in the given direction. */
-function cursorFilter(cursor: { createdAt: string; id: string }, direction: 'lt' | 'gt'): string {
+export function cursorFilter(cursor: { createdAt: string; id: string }, direction: 'lt' | 'gt'): string {
   const t = `"${cursor.createdAt}"`; // quoted: the timestamp contains reserved characters
   return `created_at.${direction}.${t},and(created_at.eq.${t},id.${direction}.${cursor.id})`;
 }
 
-function paginate<R extends { created_at: string; id: string }, T>(rows: R[], pageSize: number, map: (r: R) => T): PaginatedResult<T> {
+export function paginate<R extends { created_at: string; id: string }, T>(rows: R[], pageSize: number, map: (r: R) => T): PaginatedResult<T> {
   const hasMore = rows.length > pageSize;
   const page = rows.slice(0, pageSize);
   const last = page[page.length - 1];
