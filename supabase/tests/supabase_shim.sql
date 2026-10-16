@@ -6,8 +6,12 @@ do $$ begin create role authenticated nologin; exception when duplicate_object t
 -- Supabase's service_role: used only by the coach server, bypasses RLS, and
 -- has full rights on every table (Supabase grants this by default).
 do $$ begin create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
-alter default privileges in schema public grant all on tables to service_role;
-alter default privileges in schema public grant all on functions to service_role;
+-- Supabase's own defaults: every new table, sequence and function in public is
+-- granted to anon, authenticated and service_role. The schema files must revoke
+-- what they don't want, and these tests check that they do.
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 
 create schema if not exists auth;
 create table if not exists auth.users (id uuid primary key, email text);

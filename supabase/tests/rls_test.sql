@@ -366,5 +366,38 @@ begin; set local role service_role;
 do $$ begin assert (select access_token from public.strava_connections) = 'secret-access', 'the server (service role) could not read the connection'; end $$;
 commit;
 
+\echo '25. Supabase default grants are revoked: no hidden update rights, no block probing'
+-- A follow request from carol to bob, then bob (the followee) tries to rewrite who follows him.
+delete from public.follows where followee_id = :'bob';
+delete from public.blocks;
+insert into public.follows (follower_id, followee_id, status) values (:'carol', :'bob', 'pending');
+insert into public.blocks (blocker_id, blocked_id) values (:'alice', :'carol');
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'bob', true) \gset
+do $$ begin
+  update public.follows set follower_id = '11111111-1111-1111-1111-111111111111' where followee_id = auth.uid();
+  raise exception 'FAIL: the followee rewrote follower_id';
+exception when insufficient_privilege then null; end $$;
+do $$ begin
+  update public.comments set body = 'edited' where true;
+  raise exception 'FAIL: comments are editable';
+exception when insufficient_privilege then null; end $$;
+-- bob is neither side of the alice/carol block: the helper must not tell him.
+do $$ begin assert not public.is_blocked_between('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333'), 'bob learned that alice blocked carol'; end $$;
+commit;
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'alice', true) \gset
+do $$ begin assert public.is_blocked_between(auth.uid(), '33333333-3333-3333-3333-333333333333'), 'alice''s own block must still count'; end $$;
+commit;
+begin; set local role anon; select set_config('request.jwt.claim.sub', '', true) \gset
+do $$ begin
+  perform public.is_blocked_between('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333333');
+  raise exception 'FAIL: anonymous caller ran the block helper';
+exception when insufficient_privilege then null; end $$;
+do $$ begin
+  perform 1 from public.profiles;
+  raise exception 'FAIL: anonymous caller read profiles';
+exception when insufficient_privilege then null; end $$;
+commit;
+delete from public.blocks; delete from public.follows where followee_id = :'bob' and follower_id = :'carol';
+
 \echo ''
 \echo 'ALL RLS TESTS PASSED'

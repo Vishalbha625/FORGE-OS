@@ -107,9 +107,12 @@ create table if not exists public.reports (
 -- SECURITY DEFINER so policies can consult follows/blocks without the caller
 -- needing direct read access to other users' rows. search_path is pinned.
 
+-- Only answers about the caller's own blocks: one of the two must be you, so
+-- nobody can probe whether two other members blocked each other. (Every
+-- policy and function that uses it passes auth.uid() as one side.)
 create or replace function public.is_blocked_between(a uuid, b uuid)
 returns boolean language sql stable security definer set search_path = public as $$
-  select exists (
+  select auth.uid() is not null and auth.uid() in (a, b) and exists (
     select 1 from public.blocks
     where (blocker_id = a and blocked_id = b) or (blocker_id = b and blocked_id = a)
   );
@@ -137,7 +140,7 @@ $$;
 
 -- Keep updated_at honest and stop clients from rewriting ownership/created_at.
 create or replace function public.touch_updated_at()
-returns trigger language plpgsql as $$
+returns trigger language plpgsql set search_path = public as $$
 begin
   new.updated_at := now();
   new.created_at := old.created_at;
@@ -235,9 +238,20 @@ drop policy if exists reports_insert on public.reports;
 create policy reports_insert on public.reports for insert to authenticated
   with check (reporter_id = auth.uid());
 
--- Anonymous visitors get nothing.
+-- Anonymous visitors get nothing, and signed-in users get only these rights.
+-- Supabase grants every new table to anon and authenticated by default, so
+-- revoke first: the column grant on follows (status only) must be the only
+-- update right there.
 revoke all on public.profiles, public.follows, public.blocks, public.posts,
-  public.comments, public.kudos, public.reports from anon;
+  public.comments, public.kudos, public.reports from anon, authenticated;
+-- The helpers are for policies, which run as the signed-in caller.
+revoke all on function public.is_blocked_between(uuid, uuid) from public, anon;
+revoke all on function public.can_view_post(uuid, public.post_visibility) from public, anon;
+revoke all on function public.can_view_post_id(uuid) from public, anon;
+revoke all on function public.touch_updated_at() from public, anon, authenticated;
+grant execute on function public.is_blocked_between(uuid, uuid) to authenticated;
+grant execute on function public.can_view_post(uuid, public.post_visibility) to authenticated;
+grant execute on function public.can_view_post_id(uuid) to authenticated;
 grant select, insert, update, delete on public.profiles, public.blocks, public.posts to authenticated;
 grant select, insert, delete on public.follows, public.comments, public.kudos to authenticated;
 grant update (status) on public.follows to authenticated;
