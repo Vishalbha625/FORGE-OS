@@ -28,6 +28,7 @@ import { createApp } from './app.mjs';
 import { createCoachHandler } from './coach.mjs';
 import { createTokenVerifier } from './auth.mjs';
 import { createPush } from './push.mjs';
+import { createStrava } from './strava.mjs';
 
 const env = process.env;
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -83,6 +84,26 @@ else {
   }
 }
 
+// ── Strava import ───────────────────────────────────────────────────────────
+// The client secret and every Strava token stay here (R4). Strava sends the
+// athlete back to the app, which hands the code to /api/strava/exchange.
+const APP_URL = (env.APP_URL || ALLOWED_ORIGINS[0] || `http://localhost:${PORT}`).replace(/\/+$/, '');
+let strava = null;
+let stravaProblem = '';
+if (!env.STRAVA_CLIENT_ID || !env.STRAVA_CLIENT_SECRET) stravaProblem = 'no STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET';
+else if (!admin || !verifyUser) stravaProblem = 'needs SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY';
+else {
+  strava = createStrava({
+    admin,
+    clientId: env.STRAVA_CLIENT_ID,
+    clientSecret: env.STRAVA_CLIENT_SECRET,
+    redirectUri: `${APP_URL}/settings/strava/callback`,
+    // Only for local testing against a stand-in; Strava itself by default.
+    ...(env.STRAVA_OAUTH_BASE ? { oauthBase: env.STRAVA_OAUTH_BASE } : {}),
+    ...(env.STRAVA_API_BASE ? { apiBase: env.STRAVA_API_BASE } : {}),
+  });
+}
+
 const server = createApp({
   distDir: path.resolve(here, '..', 'dist'),
   allowedOrigins: ALLOWED_ORIGINS,
@@ -91,7 +112,8 @@ const server = createApp({
   verifyUser,
   push,
   pushPublicKey: VAPID_PUBLIC_KEY,
-  health: () => ({ model: MODEL, keyPresent, authRequired: Boolean(ACCESS_TOKEN), push: Boolean(push) }),
+  strava,
+  health: () => ({ model: MODEL, keyPresent, authRequired: Boolean(ACCESS_TOKEN), push: Boolean(push), strava: Boolean(strava) }),
 });
 
 server.listen(PORT, HOST, () => {
@@ -102,5 +124,6 @@ server.listen(PORT, HOST, () => {
       ? `credentials found in environment (model ${MODEL})`
       : 'no ANTHROPIC_API_KEY in environment. The app works fully; the coach falls back to rule-based answers unless an `ant auth login` profile is available.'}`,
   );
-  console.log(`  Push notifications: ${push ? 'on' : `off (${pushProblem})`}\n`);
+  console.log(`  Push notifications: ${push ? 'on' : `off (${pushProblem})`}`);
+  console.log(`  Strava import: ${strava ? `on (redirect ${APP_URL}/settings/strava/callback)` : `off (${stravaProblem})`}\n`);
 });

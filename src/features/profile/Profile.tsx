@@ -15,6 +15,7 @@ import type { BackupFile } from '../../db/database';
 import { calculateNextReminder, mergeReminders } from '../../lib/reminders';
 import { useTheme } from '../../store/theme';
 import { PushSettings } from '../settings/PushSettings';
+import { StravaConnect } from '../settings/StravaConnect';
 import { diffKeys } from '../../lib/audit';
 import { notify } from '../../components/ReminderRunner';
 import { coachBaseUrl, coachFetch } from '../../lib/coachApi';
@@ -192,9 +193,11 @@ export function Profile() {
 
       {settings && <SettingsSection />}
 
+      <StravaConnect />
+
       <SectionTitle lead="None are connected. They need platform APIs and your permission.">Device integrations</SectionTitle>
       <Card className="divide-y divide-border p-0">
-        {settings?.integrations.map((i) => (
+        {settings?.integrations.filter((i) => i.key !== 'strava').map((i) => (
           <div key={i.key} className="flex items-center justify-between gap-3 px-4 py-3">
             <div>
               <div className="text-sm font-medium">{i.label}</div>
@@ -205,7 +208,7 @@ export function Profile() {
         ))}
       </Card>
       <div className="mt-3">
-        <InfoNote>Apple Health and Health Connect need a native app; Garmin, Fitbit and Strava need developer API access and your sign-in. Until then, data is typed in and labelled as manual, never made up.</InfoNote>
+        <InfoNote>Apple Health and Health Connect need a native app; Garmin and Fitbit need developer API access and your sign-in. Until then, data is typed in and labelled as manual, never made up.</InfoNote>
       </div>
 
       <EditHistory />
@@ -230,6 +233,7 @@ export function Profile() {
           <li>Shared community with other athletes: a Supabase project (schema and privacy rules in <code>supabase/</code>). Health data never goes there.</li>
           <li>Device sync for steps, sleep, heart rate and routes: the platform APIs above.</li>
           <li>Notifications while the app is closed: the coach server with VAPID keys and a community account (see Notifications above).</li>
+          <li>Strava import: the coach server with a Strava API app and a community account. The Strava tokens stay on the server.</li>
         </ul>
       </Card>
 

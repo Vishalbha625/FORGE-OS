@@ -5,7 +5,7 @@
 // manually entered data is never confused with imported/device data.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type DataSource = 'manual' | 'imported' | 'device' | 'seed' | 'coach';
+export type DataSource = 'manual' | 'imported' | 'device' | 'seed' | 'coach' | 'strava';
 
 /** Base fields present on every persisted record. */
 export interface BaseRecord {
@@ -214,6 +214,10 @@ export interface RunRecord extends DatedRecord {
   elevationM?: number;
   route?: string;
   linkedPlanId?: string;
+  /** Average heart rate, when the source recorded it (Strava). */
+  avgHr?: number;
+  /** Set on runs imported from Strava, so a second sync never adds them twice. */
+  stravaActivityId?: string;
 }
 
 export interface StrengthRecord extends DatedRecord {
@@ -222,6 +226,7 @@ export interface StrengthRecord extends DatedRecord {
   durationMin?: number;
   rpe?: number;
   linkedPlanId?: string;
+  stravaActivityId?: string;
 }
 
 export interface HyroxStationResult {
@@ -243,6 +248,7 @@ export interface HyroxRecord extends DatedRecord {
   totalTimeSec?: number;
   rpe?: number;
   linkedPlanId?: string;
+  stravaActivityId?: string;
 }
 
 // ── Health / lifestyle ────────────────────────────────────────────────────────
@@ -377,6 +383,15 @@ export interface Settings extends BaseRecord {
   coachToken?: string;
   /** Push notifications on this device. Optional: added after v1.0, absent means off. */
   push?: PushSettings;
+  /** Strava import. Optional: added after v1.0, absent means not connected. The tokens stay on the server. */
+  strava?: StravaSettings;
+}
+
+export interface StravaSettings {
+  connected: boolean;
+  athleteName?: string;
+  /** ISO datetime of the last successful sync. */
+  lastSyncAt?: string;
 }
 
 /** What a push can be about. Reminder categories are scheduled from this device; social is filtered by the server. */

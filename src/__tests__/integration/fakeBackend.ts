@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // tested against real Postgres by supabase/tests/rls_test.sql and api.sh.
 
 type Row = Record<string, unknown>;
-export type Table = 'profiles' | 'posts' | 'kudos' | 'comments' | 'follows' | 'blocks' | 'reports' | 'push_subscriptions' | 'notifications';
+export type Table = 'profiles' | 'posts' | 'kudos' | 'comments' | 'follows' | 'blocks' | 'reports' | 'push_subscriptions' | 'notifications' | 'strava_connections';
 type Pred = (r: Row) => boolean;
 
 export interface LoggedCall {
@@ -38,12 +38,13 @@ const KEYS: Record<Table, string[]> = {
   blocks: ['blocker_id', 'blocked_id'],
   push_subscriptions: ['user_id', 'endpoint'],
   notifications: ['id'],
+  strava_connections: ['user_id'],
 };
 
 const POST_COLUMNS = ['caption', 'distance_km', 'duration_sec', 'pace_sec_per_km', 'elevation_m', 'station_detail', 'route_text', 'photo_path'];
 
 export class FakeBackend {
-  readonly tables: Record<Table, Row[]> = { profiles: [], posts: [], kudos: [], comments: [], follows: [], blocks: [], reports: [], push_subscriptions: [], notifications: [] };
+  readonly tables: Record<Table, Row[]> = { profiles: [], posts: [], kudos: [], comments: [], follows: [], blocks: [], reports: [], push_subscriptions: [], notifications: [], strava_connections: [] };
   readonly objects = new Map<string, Blob>();
   readonly log: LoggedCall[] = [];
   /** auth.uid(): who the requests are made as. */
@@ -142,6 +143,8 @@ export class FakeBackend {
         return r.user_id === me;
       case 'notifications':
         return r.user_id === me;
+      case 'strava_connections':
+        return false; // service role only
     }
   }
 
@@ -167,6 +170,8 @@ export class FakeBackend {
         return r.user_id === me;
       case 'notifications':
         return r.user_id === me;
+      case 'strava_connections':
+        return false;
     }
   }
 
@@ -193,6 +198,8 @@ export class FakeBackend {
         return r.user_id === me;
       case 'notifications':
         return this.notificationAllowed(r);
+      case 'strava_connections':
+        return false;
     }
   }
 

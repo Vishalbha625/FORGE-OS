@@ -43,3 +43,12 @@ services:
         sync: false
       - key: VAPID_EMAIL
         value: mailto:vishal@forge-os.app
+      # Strava import: from your Strava API application (strava.com/settings/api).
+      # Its "Authorization Callback Domain" must be the Vercel domain below.
+      - key: STRAVA_CLIENT_ID
+        sync: false
+      - key: STRAVA_CLIENT_SECRET
+        sync: false
+      # Where Strava sends members back to (/settings/strava/callback is added).
+      - key: APP_URL
+        value: https://forge-os-black.vercel.app

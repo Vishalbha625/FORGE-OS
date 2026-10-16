@@ -41,6 +41,7 @@ const ForgotPasswordPage = page(() => import('./features/auth/ForgotPasswordPage
 const AuthCallbackPage = page(() => import('./features/auth/AuthCallbackPage'), 'AuthCallbackPage');
 const ResetPasswordPage = page(() => import('./features/auth/ResetPasswordPage'), 'ResetPasswordPage');
 const NotFoundPage = page(() => import('./features/notfound/NotFoundPage'), 'NotFoundPage');
+const StravaCallback = page(() => import('./features/settings/StravaCallback'), 'StravaCallback');
 const NotificationsPage = page(() => import('./features/notifications/NotificationsPage'), 'NotificationsPage');
 
 type Shape = 'page' | 'charts' | 'feed';
@@ -140,6 +141,7 @@ function MainApp() {
             <Route path="/community/*" element={<Navigate to="/community" replace />} />
             <Route path="/notifications" element={community(<NotificationsPage />)} />
             <Route path="/profile" element={<Section name="settings"><Profile /></Section>} />
+            <Route path="/settings/strava/callback" element={<Section name="settings"><AuthGuard><StravaCallback /></AuthGuard></Section>} />
             <Route path="/coach" element={<Section name="coach"><Coach /></Section>} />
             <Route path="/analytics" element={<Section name="analytics" shape="charts"><AnalyticsPage /></Section>} />
             <Route path="/sleep" element={health(<Sleep />)} />

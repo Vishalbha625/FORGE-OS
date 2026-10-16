@@ -343,5 +343,28 @@ commit;
 delete from public.blocks where blocker_id = :'alice' and blocked_id = :'bob';
 do $$ begin assert (select count(*) from public.notifications) = 2, 'expected exactly the two genuine notifications'; end $$;
 
+\echo '24. Strava tokens: no app user can read or write them'
+insert into public.strava_connections (user_id, strava_athlete_id, access_token, refresh_token, token_expires_at, athlete_name)
+  values (:'alice', 12345, 'secret-access', 'secret-refresh', now() + interval '6 hours', 'Alice A');
+begin; set local role authenticated; select set_config('request.jwt.claim.sub', :'alice', true) \gset
+do $$ begin
+  perform 1 from public.strava_connections;
+  raise exception 'FAIL: alice read Strava tokens, even her own';
+exception when insufficient_privilege then null; end $$;
+do $$ begin
+  insert into public.strava_connections (user_id, strava_athlete_id, access_token, refresh_token, token_expires_at) values (auth.uid(), 1, 'a', 'r', now());
+  raise exception 'FAIL: a user wrote Strava tokens';
+exception when insufficient_privilege then null; end $$;
+commit;
+begin; set local role anon; select set_config('request.jwt.claim.sub', '', true) \gset
+do $$ begin
+  perform 1 from public.strava_connections;
+  raise exception 'FAIL: anonymous caller read Strava tokens';
+exception when insufficient_privilege then null; end $$;
+commit;
+begin; set local role service_role;
+do $$ begin assert (select access_token from public.strava_connections) = 'secret-access', 'the server (service role) could not read the connection'; end $$;
+commit;
+
 \echo ''
 \echo 'ALL RLS TESTS PASSED'
